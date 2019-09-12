@@ -6,6 +6,8 @@ from ipywidgets.widgets import IntSlider
 from ipywidgets import interact
 from itertools import product
 from matplotlib.font_manager import FontProperties
+import matplotlib
+matplotlib.font_manager._rebuild()
 
 # Down, Up, Right, Left
 Actions = ['D','U','R','L']  
@@ -63,12 +65,15 @@ class GridMDP():
     figsize: int, optional
         The size of the matplotlib figure to be drawn when the method plot is called. The default value is 5.
     
+    lcmap: dict, optional
+        The dictionary mapping labels to colors.
+        
     cmap: matplotlib.colors.Colormap, optional
         The colormap to be used when drawing the plot of the MDP. The default value is matplotlib.cm.RdBu.
     
     """
     
-    def __init__(self, shape, structure=None, reward=None, label=None, A=Actions, p=0.8, figsize=5, cmap=plt.cm.RdBu):
+    def __init__(self, shape, structure=None, reward=None, label=None, A=Actions, p=0.8, figsize=6, lcmap={}, cmap=plt.cm.RdBu):
         self.shape = shape
         n_rows, n_cols = shape
         
@@ -88,6 +93,7 @@ class GridMDP():
         
         self.figsize = figsize
         self.cmap = cmap
+        self.lcmap = lcmap
         
     def states(self):
         """State generator.
@@ -163,7 +169,7 @@ class GridMDP():
 
         return states, probs
     
-    def plot(self, value=None, policy=None, agent=None):
+    def plot(self, value=None, policy=None, agent=None, save=None):
         """Plots the values of the states as a color matrix.
         
         Parameters
@@ -176,8 +182,14 @@ class GridMDP():
             
         agent : tuple
             The position of the agent to be plotted. It is optional.
-
+        
+        save : str
+            The name of the file the image will be saved to. It is optional
         """
+        
+        f=FontProperties(weight='bold')
+        fontname = 'Times New Roman'
+        fontsize = 15
 
         if value is None:
             value = self.reward
@@ -187,7 +199,8 @@ class GridMDP():
         
         # Plot
         fig = plt.figure(figsize=(self.figsize,self.figsize))
-        threshold = np.nanmax(np.abs(value))
+        plt.rc('text', usetex=True)
+        threshold = np.nanmax(np.abs(value))*2
         threshold = 1 if threshold==0 else threshold 
         plt.imshow(value, interpolation='nearest', cmap=self.cmap, vmax=threshold, vmin=-threshold)
         
@@ -199,8 +212,8 @@ class GridMDP():
         ax.set_yticks(np.arange(0, n_rows, 1))
 
         # Labels for major ticks
-        ax.set_xticklabels(np.arange(n_cols+1))
-        ax.set_yticklabels(np.arange(n_rows+1))
+        ax.set_xticklabels(np.arange(n_cols+1), fontsize=fontsize)
+        ax.set_yticklabels(np.arange(n_rows+1), fontsize=fontsize)
 
         # Minor ticks
         ax.set_xticks(np.arange(-.5, n_cols, 1), minor=True)
@@ -210,18 +223,29 @@ class GridMDP():
         ax.xaxis.tick_top()
 
         # Gridlines based on minor ticks
-        ax.grid(which='minor', color='k', linestyle='-', linewidth=1)
+#         ax.grid(which='minor', color='lightgray', linestyle='-', linewidth=1)
+
+        ax.spines['right'].set_visible(False)
+        ax.spines['top'].set_visible(False)
+        ax.spines['bottom'].set_visible(False)
+        ax.spines['left'].set_visible(False)
         
-        f=FontProperties(weight='bold')
+        ax.tick_params(bottom='off', left='off')
+        
+        if agent:  # Draw the agent
+            circle=plt.Circle((agent[1],agent[0]-0.2),0.22,color='lightblue',ec='violet',lw=2)
+            plt.gcf().gca().add_artist(circle)
+        
         for i, j in self.states():  # For all states
             cell_type = self.structure[i,j]
             # If there is an obstacle
             if cell_type == 'B':
-                circle=plt.Circle((j,i),0.5,color='darkgray')
+                circle=plt.Circle((j,i),0.49,color='k',fc='darkgray')
                 plt.gcf().gca().add_artist(circle)
+                continue
             # If it is a trap cell
             elif cell_type == 'T':
-                circle=plt.Circle((j,i),0.5,color='darkgray',fill=False)
+                circle=plt.Circle((j,i),0.49,color='k',fill=False)
                 plt.gcf().gca().add_artist(circle)
                 
             # If it is a directional cell (See the description of the class attribute 'structure' for details)
@@ -244,25 +268,30 @@ class GridMDP():
             # Draw the arrows to visualize the policy
             if policy is not None:
                 if policy[i,j] >= len(self.A):
-                    plt.text(j, i, policy[i,j]-len(self.A), horizontalalignment='center',color=color)
+                    plt.text(j, i-0.1,r'$\epsilon_'+str(policy[i,j]-len(self.A))+'$', horizontalalignment='center',color=color,fontsize=fontsize+8)
                 else:
                     action_name = self.A[policy[i,j]]
                     if action_name == 'D':
-                        plt.arrow(j,i-.15,0,.2,head_width=.1,head_length=.1,color=color)
+                        plt.arrow(j,i-.35,0,0.2,head_width=.1,head_length=.1,color=color)
                     elif action_name == 'U':
-                        plt.arrow(j,i+.15,0,-.2,head_width=.1,head_length=.1,color=color)
+                        plt.arrow(j,i-0.05,0,-0.2,head_width=.1,head_length=.1,color=color)
                     elif action_name == 'R':
-                        plt.arrow(j-.15,i,.2,0,head_width=.1,head_length=.1,color=color)
+                        plt.arrow(j-.15,i-0.2,0.2,0,head_width=.1,head_length=.1,color=color)
                     elif action_name == 'L':
-                        plt.arrow(j+.15,i,-.2,0,head_width=.1,head_length=.1,color=color)
+                        plt.arrow(j+.15,i-0.2,-0.2,0,head_width=.1,head_length=.1,color=color)
     
-            else:  # Print the values
-                plt.text(j, i, format(value[i,j],'.2f'),horizontalalignment='center',color=color)  # Value
-                plt.text(j, i+0.2, ','.join(self.label[i,j]),horizontalalignment='center',color=color,fontproperties=f)  
-        
-        if agent:  # Draw the agent
-            circle=plt.Circle((agent[1],agent[0]),0.2,color='red')
-            plt.gcf().gca().add_artist(circle)
+            else:  # Print the values       
+                v = str(int(round(100*value[i,j]))).zfill(3)
+                plt.text(j, i-0.1, '$'+v[0]+'.'+v[1:]+'$',horizontalalignment='center',color=color,fontname=fontname,fontsize=fontsize+5)  # Value
+            
+            if self.label[i,j] in self.lcmap:
+                circle=plt.Circle((j, i+0.22),0.18,color=self.lcmap[self.label[i,j]])
+                plt.gcf().gca().add_artist(circle)
+            if self.label[i,j]:
+                plt.text(j, i+0.32,'$'+','.join(self.label[i,j])+'$',horizontalalignment='center',color=color,fontproperties=f,fontname=fontname,fontsize=fontsize+8)
+            
+        if save:
+            plt.savefig(save,bbox_inches='tight')
         
     
     def plot_list(self,value_list,policy_list=None):

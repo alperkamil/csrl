@@ -116,8 +116,8 @@ class ControlSynthesis:
 
         for k in range(K):
             state = (self.shape[0]-1,self.oa.q0)+(start if start else self.mdp.random_state())
-            alpha = np.max((1.0*(1 - 1.05*k/K),0.001))
-            epsilon = np.max((1.0*(1 - 1.05*k/K),0.01))
+            alpha = np.max((1.0*(1 - 1.5*k/K),0.001))
+            epsilon = np.max((1.0*(1 - 1.5*k/K),0.01))
             for t in range(T):
 
                 reward = self.reward[state]
@@ -228,13 +228,13 @@ class ControlSynthesis:
             
         if plot:
             def plot_agent(t):
-                self.mdp.plot(agent=episode[t][2:])
+                self.mdp.plot(policy=policy[episode[t][:2]],agent=episode[t][2:])
             t=IntSlider(value=0,min=0,max=T-1)
             interact(plot_agent,t=t)
         
         return episode
         
-    def plot(self, value=None, policy=None):
+    def plot(self, value=None, policy=None, iq=None, save=None):
         """Plots the values of the states as a color matrix with two sliders.
         
         Parameters
@@ -244,14 +244,18 @@ class ControlSynthesis:
             
         policy : array, shape=(n_mdps,n_qs,n_rows,n_cols) 
             The policy to be visualized. It is optional.
+            
+        save : str
+            The name of the file the image will be saved to. It is optional
         """
         value = np.zeros(self.shape) if value is None else value
-        # A helper function for the sliders
-        def plot_value(i,q):
-            if policy is not None:
-                self.mdp.plot(value[i,q],policy[i,q])
-            else:
-                self.mdp.plot(value[i,q])
-        i = IntSlider(value=0,min=0,max=self.shape[0]-1) if self.shape[0]>0 else 0
-        q=IntSlider(value=self.oa.q0,min=0,max=self.shape[1]-1)
-        interact(plot_value,i=i,q=q)
+        
+        if iq:
+            self.mdp.plot(value[iq],policy[iq],save=save) if policy is not None else self.mdp.plot(value[iq],save=save)
+        else:
+            # A helper function for the sliders
+            def plot_value(i,q):
+                self.mdp.plot(value[i,q],policy[i,q]) if policy is not None else self.mdp.plot(value[i,q])
+            i = IntSlider(value=0,min=0,max=self.shape[0]-1)
+            q = IntSlider(value=self.oa.q0,min=0,max=self.shape[1]-1)
+            interact(plot_value,i=i,q=q)
