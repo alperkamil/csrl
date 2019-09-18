@@ -1,11 +1,18 @@
 """Control Synthesis using Reinforcement Learning.
 """
 import numpy as np
-import matplotlib.pyplot as plt
-from ipywidgets.widgets import IntSlider
-from ipywidgets import interact
 from itertools import product
-from mdp import GridMDP
+from .mdp import GridMDP
+import os
+import importlib
+
+if importlib.util.find_spec('matplotlib'):
+    import matplotlib.pyplot as plt
+    
+if importlib.util.find_spec('ipywidgets'):
+    from ipywidgets.widgets import IntSlider
+    from ipywidgets import interact
+
 
 
 class ControlSynthesis:
@@ -13,9 +20,6 @@ class ControlSynthesis:
     
     Attributes
     ----------
-    discountB : float
-        The discount factor applied to B states.
-        
     shape : (n_pairs, n_qs, n_rows, n_cols, n_actions)
         The shape of the product MDP.
     
@@ -36,12 +40,15 @@ class ControlSynthesis:
     discount : float
         The discount factor.
     
+    discountB : float
+        The discount factor applied to B states.
+    
     """
-    def __init__(self, mdp, oa, discount):
+    def __init__(self, mdp, oa, discount=0.99999, discountB=0.99):
         self.mdp = mdp
         self.oa = oa
         self.discount = discount
-        self.discountB = 1-np.sqrt(1-discount)  # We can also use other functions.
+        self.discountB = discountB  # We can also explicitly define a function of discount
         self.shape = oa.shape + mdp.shape + (len(mdp.A)+oa.shape[1],)
         
         # Create the action matrix
@@ -196,7 +203,7 @@ class ControlSynthesis:
             
         return value
     
-    def simulate(self,policy,start=None,T=None,plot=True):
+    def simulate(self,policy,start=None,T=None,plot=True, animation=None):
         """Simulates the environment and returns a trajectory obtained under the given policy.
         
         Parameters
@@ -231,10 +238,19 @@ class ControlSynthesis:
                 self.mdp.plot(policy=policy[episode[t][:2]],agent=episode[t][2:])
             t=IntSlider(value=0,min=0,max=T-1)
             interact(plot_agent,t=t)
+            
+        if animation:
+            pad=5
+            if not os.path.exists(animation):
+                os.makedirs(animation)
+            for t in range(T):
+                self.mdp.plot(policy=policy[episode[t][:2]],agent=episode[t][2:],save=animation+os.sep+str(t).zfill(pad)+'.png')
+                plt.close()
+            os.system('ffmpeg -r 3 -i '+animation+os.sep+'%0'+str(pad)+'d.png -vcodec libx264 -y '+animation+'.mp4')
         
         return episode
         
-    def plot(self, value=None, policy=None, iq=None, save=None):
+    def plot(self, value=None, policy=None, iq=None, **kwargs):
         """Plots the values of the states as a color matrix with two sliders.
         
         Parameters
@@ -248,14 +264,17 @@ class ControlSynthesis:
         save : str
             The name of the file the image will be saved to. It is optional
         """
-        value = np.zeros(self.shape) if value is None else value
         
         if iq:
-            self.mdp.plot(value[iq],policy[iq],save=save) if policy is not None else self.mdp.plot(value[iq],save=save)
+            val = value[iq] if value is not None else None
+            pol = policy[iq] if policy is not None else None
+            self.mdp.plot(val,pol,**kwargs)
         else:
             # A helper function for the sliders
             def plot_value(i,q):
-                self.mdp.plot(value[i,q],policy[i,q]) if policy is not None else self.mdp.plot(value[i,q])
+                val = value[i,q] if value is not None else None
+                pol = policy[i,q] if policy is not None else None
+                self.mdp.plot(val,pol,**kwargs)
             i = IntSlider(value=0,min=0,max=self.shape[0]-1)
             q = IntSlider(value=self.oa.q0,min=0,max=self.shape[1]-1)
             interact(plot_value,i=i,q=q)

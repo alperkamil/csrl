@@ -6,9 +6,14 @@ import random
 import numpy as np
 import os
 import re
-import spot
-from spot.jupyter import display_inline
+import importlib
 from itertools import chain, combinations
+
+if importlib.util.find_spec('spot'):
+    import spot
+else:
+    spot=None
+
 
 
 class OmegaAutomaton:
@@ -47,13 +52,11 @@ class OmegaAutomaton:
     """
     def __init__(self,ltl,oa_type='ldba'):
         self.oa_type = oa_type
-        spot.setup()
         q0, delta, acc, eps, shape, spot_oa = self.ltl2oa(ltl)
         self.q0 = q0
         self.delta = delta
         self.acc = acc
         self.shape = shape
-        spot_oa.merge_edges()  # For better visualization
         self.spot_oa = spot_oa
         self.eps = eps
 
@@ -155,12 +158,16 @@ class OmegaAutomaton:
                                 acc[q][ap] = t_acc
 
         # Construct a spot object for visualization
-        filename = self.random_hoa_filename()
-        with open(filename,'wb') as f:
-            f.write(check_output(['ltl2ldba', '-d', ltl] if self.oa_type == 'ldba' else ['ltl2dra', '-c', ltl]))
-        
-        spot_oa = spot.automaton(filename)
-        os.remove(filename)
+        if spot:
+            filename = self.random_hoa_filename()
+            with open(filename,'wb') as f:
+                f.write(check_output(['ltl2ldba', '-d', ltl] if self.oa_type == 'ldba' else ['ltl2dra', '-c', ltl]))
+            spot.setup()
+            spot_oa = spot.automaton(filename)
+            spot_oa.merge_edges()  # For better visualization
+            os.remove(filename)
+        else:
+            spot_oa=None
 
         return q0, delta, acc, eps, shape, spot_oa
     
@@ -187,7 +194,8 @@ class OmegaAutomaton:
         out: str
             The string of svg representation of the OA within div tags.
         """
-        return '<div>%s</div>' % self.spot_oa.show(show)._repr_svg_()
+        if spot:
+            return '<div>%s</div>' % self.spot_oa.show(show)._repr_svg_()
 
     def random_hoa_filename(self):
         """Returns a random file name.

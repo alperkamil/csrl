@@ -2,15 +2,21 @@
 """
 import numpy as np
 import matplotlib.pyplot as plt
-from ipywidgets.widgets import IntSlider
-from ipywidgets import interact
 from itertools import product
-from matplotlib.font_manager import FontProperties
-import matplotlib
-matplotlib.font_manager._rebuild()
+import importlib
 
-# Down, Up, Right, Left
-Actions = ['D','U','R','L']  
+if importlib.util.find_spec('matplotlib'):
+    import matplotlib
+    import matplotlib.pyplot as plt
+    from matplotlib.font_manager import FontProperties
+    matplotlib.font_manager._rebuild()
+    
+if importlib.util.find_spec('ipywidgets'):
+    from ipywidgets.widgets import IntSlider
+    from ipywidgets import interact
+
+# Up, Down, Right, Left
+Actions = ['U','D','R','L']  
 
 class GridMDP():
     """This class implements a Markov Decision Process where an agent can move up, down, right or left in a 2D grid world.
@@ -42,7 +48,7 @@ class GridMDP():
     structure : array, shape=(n_rows,n_cols)
         The structure of the grid function, structure[i][j] stores the type of the cell (i,j). 
         If structure[i,j] is 'E' it means the cell is empty and the agent is free to move in any direction. If it is 'B' then the cell is blocked, the agent cannot go there.
-        If it is one of 'D','U','R' and 'L', the agent is free to enter the cell in any direction, but it cannot leave the cell in the opposite direction of the label.
+        If it is one of 'U','D','R' and 'L', the agent is free to enter the cell in any direction, but it cannot leave the cell in the opposite direction of the label.
             For example, if the label is 'D', then the agent cannot go up as if there is an obstacle there.
         If it is 'T', then the cell is a trap cell, which means if the agent cannot leave the cell once it reaches it.
         The default value is None.
@@ -152,14 +158,14 @@ class GridMDP():
         if action_name!='D' and state[0]-1 >= 0 and self.structure[state[0]-1][state[1]] != 'B' and cell_type != 'D':
             states.append((state[0]-1,state[1]))
             probs.append(self.p if action_name=='U' else (1-self.p)/2) 
-        # East
-        if action_name!='L' and state[1]+1 < n_cols and self.structure[state[0]][state[1]+1] != 'B' and cell_type != 'L':
-            states.append((state[0],state[1]+1))
-            probs.append(self.p if action_name=='R' else (1-self.p)/2)
         # West
         if action_name!='R' and state[1]-1 >= 0 and self.structure[state[0]][state[1]-1] != 'B' and cell_type != 'R':
             states.append((state[0],state[1]-1))
             probs.append(self.p if action_name=='L' else (1-self.p)/2)
+        # East
+        if action_name!='L' and state[1]+1 < n_cols and self.structure[state[0]][state[1]+1] != 'B' and cell_type != 'L':
+            states.append((state[0],state[1]+1))
+            probs.append(self.p if action_name=='R' else (1-self.p)/2)
         
         # If the agent cannot move in some of the directions
         probs_sum = np.sum(probs)
@@ -169,7 +175,7 @@ class GridMDP():
 
         return states, probs
     
-    def plot(self, value=None, policy=None, agent=None, save=None):
+    def plot(self, value=None, policy=None, agent=None, save=None, hidden=[], path={}):
         """Plots the values of the states as a color matrix.
         
         Parameters
@@ -189,11 +195,15 @@ class GridMDP():
         
         f=FontProperties(weight='bold')
         fontname = 'Times New Roman'
-        fontsize = 15
+        fontsize = 20
 
         if value is None:
             value = self.reward
-
+        else:
+            value = np.copy(value)
+            for h in hidden:
+                value[h] = 0
+        
         # Dimensions
         n_rows, n_cols = self.shape
         
@@ -221,9 +231,9 @@ class GridMDP():
         
         # Move x axis to the top
         ax.xaxis.tick_top()
-
+    
         # Gridlines based on minor ticks
-#         ax.grid(which='minor', color='lightgray', linestyle='-', linewidth=1)
+        ax.grid(which='minor', color='lightgray', linestyle='-', linewidth=1,alpha=0.5)
 
         ax.spines['right'].set_visible(False)
         ax.spines['top'].set_visible(False)
@@ -232,11 +242,26 @@ class GridMDP():
         
         ax.tick_params(bottom='off', left='off')
         
-        if agent:  # Draw the agent
-            circle=plt.Circle((agent[1],agent[0]-0.2),0.22,color='lightblue',ec='violet',lw=2)
+        # Draw the agent
+        if agent:  
+            circle=plt.Circle((agent[1],agent[0]-0.17),0.26,color='lightblue',ec='purple',lw=2)
             plt.gcf().gca().add_artist(circle)
         
         for i, j in self.states():  # For all states
+            if (i,j) in path:
+                if 'u' in path[i,j]:
+                    rect=plt.Rectangle((j-0.4,i+0.4),+0.8,-0.9,color='lightcoral')
+                    plt.gcf().gca().add_artist(rect)
+                if 'd' in path[i,j]:
+                    rect=plt.Rectangle((j-0.4,i-0.4),+0.8,+0.9,color='lightcoral')
+                    plt.gcf().gca().add_artist(rect)
+                if 'r' in path[i,j]:
+                    rect=plt.Rectangle((j-0.4,i-0.4),+0.9,+0.8,color='lightcoral')
+                    plt.gcf().gca().add_artist(rect)
+                if 'l' in path[i,j]:
+                    rect=plt.Rectangle((j+0.4,i-0.4),-0.9,+0.8,color='lightcoral')
+                    plt.gcf().gca().add_artist(rect)
+                    
             cell_type = self.structure[i,j]
             # If there is an obstacle
             if cell_type == 'B':
@@ -249,11 +274,11 @@ class GridMDP():
                 plt.gcf().gca().add_artist(circle)
                 
             # If it is a directional cell (See the description of the class attribute 'structure' for details)
-            elif cell_type == 'D':
-                triangle = plt.Polygon([[j,i],[j-0.5,i-0.5],[j+0.5,i-0.5]], color='gray')
-                plt.gca().add_patch(triangle)
             elif cell_type == 'U':
                 triangle = plt.Polygon([[j,i],[j-0.5,i+0.5],[j+0.5,i+0.5]], color='gray')
+                plt.gca().add_patch(triangle)
+            elif cell_type == 'D':
+                triangle = plt.Polygon([[j,i],[j-0.5,i-0.5],[j+0.5,i-0.5]], color='gray')
                 plt.gca().add_patch(triangle)
             elif cell_type == 'R':
                 triangle = plt.Polygon([[j,i],[j-0.5,i+0.5],[j-0.5,i-0.5]], color='gray')
@@ -265,30 +290,32 @@ class GridMDP():
             # If the background is too dark, make the text white
             color = 'white' if np.abs(value[i, j]) > threshold/2 else 'black'
             
+            if policy is None:  # Print the values       
+                v = str(int(round(100*value[i,j]))).zfill(3)
+                plt.text(j, i, '$'+v[0]+'.'+v[1:]+'$',horizontalalignment='center',color=color,fontname=fontname,fontsize=fontsize+2)  # Value
+                
             # Draw the arrows to visualize the policy
-            if policy is not None:
+            elif value[i,j] > 0 or value is self.reward:  
                 if policy[i,j] >= len(self.A):
-                    plt.text(j, i-0.1,r'$\epsilon_'+str(policy[i,j]-len(self.A))+'$', horizontalalignment='center',color=color,fontsize=fontsize+8)
+                    plt.text(j, i-0.05,r'$\epsilon_'+str(policy[i,j]-len(self.A))+'$', horizontalalignment='center',color=color,fontsize=fontsize+5)
                 else:
                     action_name = self.A[policy[i,j]]
-                    if action_name == 'D':
-                        plt.arrow(j,i-.35,0,0.2,head_width=.1,head_length=.1,color=color)
-                    elif action_name == 'U':
-                        plt.arrow(j,i-0.05,0,-0.2,head_width=.1,head_length=.1,color=color)
+                    if action_name == 'U':
+                        plt.arrow(j,i,0,-0.2,head_width=.2,head_length=.15,color=color)
+                    elif action_name == 'D':
+                        plt.arrow(j,i-.3,0,0.2,head_width=.2,head_length=.15,color=color)
                     elif action_name == 'R':
-                        plt.arrow(j-.15,i-0.2,0.2,0,head_width=.1,head_length=.1,color=color)
+                        plt.arrow(j-.15,i-0.15,0.2,0,head_width=.2,head_length=.15,color=color)
                     elif action_name == 'L':
-                        plt.arrow(j+.15,i-0.2,-0.2,0,head_width=.1,head_length=.1,color=color)
-    
-            else:  # Print the values       
-                v = str(int(round(100*value[i,j]))).zfill(3)
-                plt.text(j, i-0.1, '$'+v[0]+'.'+v[1:]+'$',horizontalalignment='center',color=color,fontname=fontname,fontsize=fontsize+5)  # Value
+                        plt.arrow(j+.15,i-0.15,-0.2,0,head_width=.2,head_length=.15,color=color)
             
+            # Plot the labels
+            surplus = 0.2 if (i,j) in hidden else 0
             if self.label[i,j] in self.lcmap:
-                circle=plt.Circle((j, i+0.22),0.18,color=self.lcmap[self.label[i,j]])
+                circle=plt.Circle((j, i+0.24-surplus),0.2+surplus/2,color=self.lcmap[self.label[i,j]])
                 plt.gcf().gca().add_artist(circle)
             if self.label[i,j]:
-                plt.text(j, i+0.32,'$'+','.join(self.label[i,j])+'$',horizontalalignment='center',color=color,fontproperties=f,fontname=fontname,fontsize=fontsize+8)
+                plt.text(j, i+0.4-surplus,'$'+','.join(self.label[i,j])+'$',horizontalalignment='center',color=color,fontproperties=f,fontname=fontname,fontsize=fontsize+5+surplus*10)
             
         if save:
             plt.savefig(save,bbox_inches='tight')

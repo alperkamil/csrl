@@ -2,3 +2,6 @@
 __pycache__/*
 *.npy
 *.eps
+*/.ipynb_checkpoints/*
+*/__pycache__/*
+backup/*
