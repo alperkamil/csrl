@@ -72,4 +72,4 @@ The repository contains a couple of example IPython notebooks:
  - [Safe Absorbing States](Safe%20Absorbing%20States.ipynb)
  - [Nursery Scenario](Nursery%20Scenario.ipynb)
 
-Animations of the case studies: [safe_absorbing.mkv](safe_absorbing.mkv) and [nursery.mkv](nursery.mkv)
+Animations of the case studies: [safe_absorbing.mp4](safe_absorbing.mp4) and [nursery.mp4](nursery.mp4)
