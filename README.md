@@ -1,6 +1,6 @@
 # Control Synthesis from Linear Temporal Logic Specifications using Model-Free Reinforcement Learning
 
-This repository includes the implementation of learning-based synthesis algorithm described in this [article](https://arxiv.org/abs/1909.07299).
+This repository includes the implementation of the learning-based synthesis algorithm described in this [article](https://arxiv.org/abs/1909.07299).
 ## Dependencies
  - [Python](https://www.python.org/): (>=3.5)
  - [Rabinizer 4](https://www7.in.tum.de/~kretinsk/rabinizer4.html): ```ltl2ldba``` must be in ```PATH``` (```ltl2ldra``` is optional)
