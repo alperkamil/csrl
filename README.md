@@ -1,6 +1,6 @@
 # Control Synthesis from Linear Temporal Logic Specifications using Model-Free Reinforcement Learning
 
-This repository includes the implementation of supervisors for discrete event systems againt several types of attacks.
+This repository includes the implementation of learning-based synthesis algorithm described in this [article](https://arxiv.org/abs/1909.07299).
 ## Dependencies
  - [Python](https://www.python.org/): (>=3.5)
  - [Rabinizer 4](https://www7.in.tum.de/~kretinsk/rabinizer4.html): ```ltl2ldba``` must be in ```PATH``` (```ltl2ldra``` is optional)
@@ -72,4 +72,4 @@ The repository contains a couple of example IPython notebooks:
  - [Safe Absorbing States](Safe%20Absorbing%20States.ipynb)
  - [Nursery Scenario](Nursery%20Scenario.ipynb)
 
-Animations of the case studies: [safe_absorbing.mp4](safe_absorbing.mp4) and [nursery.mp4](nursery.mp4)
+Animations of the case studies: [safe_absorbing.mp4](safe_absorbing.mp4) and [nursery.mp4](nursery.mp4).
