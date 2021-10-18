@@ -1,3 +1,4 @@
+# MOVED TO: https://gitlab.oit.duke.edu/cpsl/csrl
 # Control Synthesis from Linear Temporal Logic Specifications using Model-Free Reinforcement Learning
 
 This repository includes the implementation of the learning-based synthesis algorithm described in this [article](https://arxiv.org/abs/1909.07299).
