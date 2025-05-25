@@ -8,11 +8,7 @@ import os
 import re
 import importlib
 from itertools import chain, combinations
-
-if importlib.util.find_spec('spot'):
-    import spot
-else:
-    spot=None
+import spot
 
 
 class OmegaAutomaton:
@@ -62,7 +58,7 @@ class OmegaAutomaton:
 
     def ltl2oa(self, ltl):
         """Constructs and returns dictionaries and lists containing the specifications of an OA obtained by translation from the ltl property.
-        It parses the output of ltl2ldba or ltl2dra for the ltl formula and creates a objects that store the specification of the OA.
+        It parses the output of ltl2ldba, ltl2dra or ltl2dpa for the ltl formula and creates a objects that store the specification of the OA.
 
         Parameters
         ----------
@@ -81,10 +77,82 @@ class OmegaAutomaton:
         env["PATH"] = env["HOME"]+"/anaconda3/bin:" + env["PATH"]
 
         # Translate the LTL formula to an OA using Rabinizer 4.
-        out=check_output(['ltl2ldba', '-d', '-e', ltl] if self.oa_type == 'ldba' else ['ltl2dra', '-c', ltl], shell=platform=='win32', env=env)
+        if self.oa_type == 'ldba':
+            translate = ['ltl2ldba', '-d', '-e', ltl]
+        elif self.oa_type == 'dra':
+            translate = ['ltl2dra', '-c', ltl]
+        elif self.oa_type == 'dpa':
+            translate = ['ltl2dpa', ltl]
+        else:
+            translate = []
+        
+        hao=check_output(translate, shell=platform=='win32', env=env)
+        
+        if self.oa_type == 'ldba':
+            spot_oa = None
+        else:
+            spot_oa = self.hao_to_spot(hao)
+        
+        if self.oa_type == 'dpa':
+            spot_oa = spot.complete(spot.change_parity(spot_oa,spot.parity_kind_max,spot.parity_style_odd))
+            q0, delta, acc, eps, shape = self.construct_from_spot(spot_oa)
+        else:
+            q0, delta, acc, eps, shape = self.construct_from_hao(hao)
+        
+        if spot_oa:
+            spot_oa.merge_edges()  # For better visualization
+        return q0, delta, acc, eps, shape, spot_oa
+        
+    def hao_to_spot(self,hao):
+        """Constructs a spot omega automaton from the given description in hao format"""
+
+        filename = self.random_hoa_filename()
+        with open(filename,'wb') as f:
+            f.write(hao)
+        spot.setup()
+        spot_oa = spot.automaton(filename)
+        os.remove(filename)
+        return spot_oa
+    
+    def construct_from_spot(self,spot_oa):
+        q0 = spot_oa.get_init_state_number()
+        shape = n_sets, n_qs = spot_oa.num_sets()+1 ,spot_oa.num_states()
+        eps = [[] for q in range(shape[1])]
+        
+        spot_AP = {str(a):a for a in spot_oa.ap()}
+        AP = sorted(spot_AP.keys())
+        
+        powerset_spot_AP = {}
+        for ap_set in self.powerset(AP):
+            and_list=[]
+            for a in AP:
+                if a in ap_set:
+                    and_list.append(spot_AP[a])
+                else:
+                    and_list.append(spot.formula_Not(spot_AP[a]))
+            
+            powerset_spot_AP[tuple(sorted(ap_set))] = spot.formula_And(and_list)
+        
+        
+        delta=[{} for i in range(n_qs)]
+        acc=[{} for i in range(n_qs)]
+        
+        for e in spot_oa.edges():
+            color = e.acc.max_set()
+            cond = spot.bdd_to_formula(e.cond)
+            for ap_set in powerset_spot_AP:
+                spot_ap_set = powerset_spot_AP[ap_set]
+                if spot.formula_Implies(spot_ap_set,cond).equivalent_to(spot.formula.tt()):
+                    delta[e.src][ap_set] = e.dst
+                    acc[e.src][ap_set] = color
+        
+        return q0, delta, acc, eps, shape
+            
+        
+    def construct_from_hao(self,hao):
 
         # Split the output into two parts: the header and the body
-        header, body = out.decode('utf-8').split('--BODY--\n')
+        header, body = hao.decode('utf-8').split('--BODY--\n')
 
         # Parse the initial state, the atomic propositions and the number of Rabin pairs
         for line in header.splitlines():
@@ -157,19 +225,7 @@ class OmegaAutomaton:
                                 delta[q][ap] = dst
                                 acc[q][ap] = t_acc
 
-        # Construct a spot object for visualization
-        if spot:
-            filename = self.random_hoa_filename()
-            with open(filename,'wb') as f:
-                f.write(check_output(['ltl2ldba', '-d', ltl] if self.oa_type == 'ldba' else ['ltl2dra', '-c', ltl]))
-            spot.setup()
-            spot_oa = spot.automaton(filename)
-            spot_oa.merge_edges()  # For better visualization
-            os.remove(filename)
-        else:
-            spot_oa=None
-
-        return q0, delta, acc, eps, shape, spot_oa
+        return q0, delta, acc, eps, shape
 
     def powerset(self, a):
         """Returns the power set of the given list.
@@ -194,8 +250,13 @@ class OmegaAutomaton:
         out: str
             The string of svg representation of the OA within div tags.
         """
-        if spot:
-            return '<div>%s</div>' % self.spot_oa.show(show)._repr_svg_()
+        if self.spot_oa:
+            svg = self.spot_oa.show(show)._repr_svg_()
+            colors=['⓿','❶','❷','❸','❹','❺','❻','❼','❽','❾','❿']
+            for i in range(len(colors)-1,0,-1):
+                svg = svg.replace(colors[i-1],colors[i])
+            svg = svg.replace('odd','even')
+            return '<div>%s</div>' % svg
 
     def random_hoa_filename(self):
         """Returns a random file name.

@@ -19,7 +19,7 @@ Actions = ['U', 'D', 'R', 'L']
 
 
 class GridMDP():
-    """This class implements a Markov Decision Process where an agent can mnnove up, down, right or left in a 2D grid world.
+    """This class implements a Markov decision process where an agent can move up, down, right or left in a 2D grid world.
 
     Attributes
     ----------
@@ -79,7 +79,7 @@ class GridMDP():
 
     """
 
-    def __init__(self, shape, structure=None, reward=None, label=None, A=Actions, p=0.8, figsize=6, lcmap={}, cmap=plt.cm.RdBu, robust=False, secure=False, adversary=None):
+    def __init__(self, shape, structure=None, reward=None, label=None, A=Actions, p=0.8, figsize=6, lcmap={}, cmap=plt.cm.RdBu, robust=False, secure=False, adversary=None, lexicographic=False):
         self.shape = shape
         n_rows, n_cols = shape
 
@@ -92,6 +92,7 @@ class GridMDP():
         self.robust = robust
         self.secure = secure
         self.adversary = adversary
+        self.lexicographic = lexicographic
         self.p = p
         self.A = A
 
@@ -160,86 +161,76 @@ class GridMDP():
         """
         cell_type = self.structure[state]
         if cell_type in ['B', 'T']:
-            return [state], [1.]
+            return [state, state, state], [1., 0, 0]
 
         n_rows, n_cols = self.shape
         states, probs = [], []
         
-        dp = None
-        if action_name==action_name_:
-            dp = 1
-        elif (action_name=='U' and action_name_=='D') or (action_name=='D' and action_name_=='U') or \
-             (action_name=='R' and action_name_=='L') or (action_name=='L' and action_name_=='R'):
-            dp = -1
-        elif action_name_:
-            dp = 0
 
         # South
         if action_name!='U' and state[0]+1 < n_rows and self.structure[state[0]+1][state[1]] != 'B' and cell_type != 'U':
             states.append((state[0]+1,state[1]))
             probs.append(self.p if action_name=='D' else (1-self.p)/2)
-            
-            if dp==1 and action_name=='D':
-                probs[-1] = 1
-            if (dp==1 and action_name!='D') or (dp==0 and action_name!='D' and action_name_!='D'):
-                probs.pop()
-                states.pop()  
-            if dp==0 and action_name=='D': 
-                probs[-1] = self.p + (1-self.p)/2
-            if dp==0 and action_name!='D' and action_name_=='D':
-                probs[-1] = (1-self.p)/2
-                            
+                          
         # North
         if action_name!='D' and state[0]-1 >= 0 and self.structure[state[0]-1][state[1]] != 'B' and cell_type != 'D':
             states.append((state[0]-1,state[1]))
             probs.append(self.p if action_name=='U' else (1-self.p)/2) 
             
-            if dp==1 and action_name=='U':
-                probs[-1] = 1
-            if (dp==1 and action_name!='U') or (dp==0 and action_name!='U' and action_name_!='U'):
-                probs.pop()
-                states.pop()  
-            if dp==0 and action_name=='U': 
-                probs[-1] = self.p + (1-self.p)/2
-            if dp==0 and action_name!='U' and action_name_=='U':
-                probs[-1] = (1-self.p)/2
-                
         # West
         if action_name!='R' and state[1]-1 >= 0 and self.structure[state[0]][state[1]-1] != 'B' and cell_type != 'R':
             states.append((state[0],state[1]-1))
             probs.append(self.p if action_name=='L' else (1-self.p)/2)
             
-            if dp==1 and action_name=='L':
-                probs[-1] = 1
-            if (dp==1 and action_name!='L') or (dp==0 and action_name!='L' and action_name_!='L'):
-                probs.pop()
-                states.pop()  
-            if dp==0 and action_name=='L': 
-                probs[-1] = self.p + (1-self.p)/2
-            if dp==0 and action_name!='L' and action_name_=='L':
-                probs[-1] = (1-self.p)/2
-        
         # East
         if action_name!='L' and state[1]+1 < n_cols and self.structure[state[0]][state[1]+1] != 'B' and cell_type != 'L':
             states.append((state[0],state[1]+1))
             probs.append(self.p if action_name=='R' else (1-self.p)/2)
             probs[-1] -= (1-self.p)/2 if action_name_=='L' else 0
-            
-            if dp==1 and action_name=='R':
-                probs[-1] = 1
-            if (dp==1 and action_name!='R') or (dp==0 and action_name!='R' and action_name_!='R'):
-                probs.pop()
-                states.pop()  
-            if dp==0 and action_name=='R': 
-                probs[-1] = self.p + (1-self.p)/2
-            if dp==0 and action_name!='R' and action_name_=='R':
-                probs[-1] = (1-self.p)/2
-            
+        
+        def get_state(act):
+            if act=='U' and state[0]-1 >= 0 and self.structure[state[0]-1][state[1]] != 'B' and cell_type != 'D':
+                return (state[0]-1,state[1])
+            elif act=='D' and state[0]+1 < n_rows and self.structure[state[0]+1][state[1]] != 'B' and cell_type != 'U':
+                return (state[0]+1,state[1])
+            elif act=='R' and state[1]+1 < n_cols and self.structure[state[0]][state[1]+1] != 'B' and cell_type != 'L':
+                return (state[0],state[1]+1)
+            elif act=='L' and state[1]-1 >= 0 and self.structure[state[0]][state[1]-1] != 'B' and cell_type != 'R':
+                return (state[0],state[1]-1)
+            else:
+                return state
+
         # If the agent cannot move in some of the directions
         probs_sum = np.sum(probs)
         if probs_sum<1:
-            states.append(state)
-            probs.append(1-probs_sum)
+            if len(states)==3:
+                probs = probs/np.sum(probs)
+            else:
+                states.append(state)
+                probs.append(1-probs_sum)
+            
+            if len(states)<3:
+                states.append(state)
+                probs.append(0)
+        
+        if action_name_:
+            if action_name==action_name_:
+                probs = [1.]
+                states = [get_state(action_name)]
+            elif action_name=='U' and action_name_=='D' or (action_name=='D' and action_name_=='U') or \
+                 (action_name=='R' and action_name_=='L') or (action_name=='L' and action_name_=='R'):
+                probs = [self.p, (1-self.p)/2, (1-self.p)/2]
+                if action_name=='U':
+                    states = [get_state('U'),get_state('R'),get_state('L')]
+                elif action_name=='D':
+                    states = [get_state('D'),get_state('R'),get_state('L')]
+                elif action_name=='R':
+                    states = [get_state('R'),get_state('U'),get_state('D')]
+                elif action_name=='L':
+                    states = [get_state('L'),get_state('U'),get_state('D')]
+            else:
+                probs = [self.p, (1-self.p)]
+                states = [get_state(action_name),get_state(action_name_)]
 
         return states, probs
 
@@ -318,16 +309,16 @@ class GridMDP():
         for i, j in self.states():  # For all states
             if (i,j) in path:
                 if 'u' in path[i,j]:
-                    rect=plt.Rectangle((j-0.4,i+0.4),+0.8,-0.9,color='lightsteelblue')
+                    rect=plt.Rectangle((j-0.4,i+0.4),+0.8,-0.9,color='purple')
                     ax.add_artist(rect)
                 if 'd' in path[i,j]:
-                    rect=plt.Rectangle((j-0.4,i-0.4),+0.8,+0.9,color='lightsteelblue')
+                    rect=plt.Rectangle((j-0.4,i-0.4),+0.8,+0.9,color='purple')
                     ax.add_artist(rect)
                 if 'r' in path[i,j]:
-                    rect=plt.Rectangle((j-0.4,i-0.4),+0.9,+0.8,color='lightsteelblue')
+                    rect=plt.Rectangle((j-0.4,i-0.4),+0.9,+0.8,color='purple')
                     ax.add_artist(rect)
                 if 'l' in path[i,j]:
-                    rect=plt.Rectangle((j+0.4,i-0.4),-0.9,+0.8,color='lightsteelblue')
+                    rect=plt.Rectangle((j+0.4,i-0.4),-0.9,+0.8,color='purple')
                     ax.add_artist(rect)
 
             cell_type = self.structure[i,j]
