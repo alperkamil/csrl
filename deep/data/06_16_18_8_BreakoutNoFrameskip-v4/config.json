@@ -1,0 +1,38 @@
+{
+    "act_epsilon":	5,
+    "batch_size":	32,
+    "ep_end":	10,
+    "ep_start":	100,
+    "eps_decay":	1000000,
+    "exp_name":	"06_16_18_8_BreakoutNoFrameskip-v4",
+    "gamma":	0.99,
+    "log":	{
+        "<utils.logger.EpochLogger object at 0x1541b6f55dd8>":	{
+            "epoch_dict":	{},
+            "exp_name":	"06_16_18_8_BreakoutNoFrameskip-v4",
+            "first_row":	true,
+            "log_current_row":	{},
+            "log_headers":	[],
+            "output_dir":	"/usr/project/xtmp/ds541/rl/DQN/data/06_16_18_8_BreakoutNoFrameskip-v4",
+            "output_file":	{
+                "<_io.TextIOWrapper name='/usr/project/xtmp/ds541/rl/DQN/data/06_16_18_8_BreakoutNoFrameskip-v4/progress.txt' mode='w' encoding='UTF-8'>":	{
+                    "mode":	"w"
+                }
+            }
+        }
+    },
+    "logger_kwargs":	{
+        "exp_name":	"06_16_18_8_BreakoutNoFrameskip-v4",
+        "output_dir":	"/usr/project/xtmp/ds541/rl/DQN/data/06_16_18_8_BreakoutNoFrameskip-v4"
+    },
+    "model_save_frequency":	100000,
+    "n_episodes_plot":	10,
+    "noop":	false,
+    "num_frames":	50000000,
+    "plot_frequency":	1000,
+    "replay_memory_size":	1000000,
+    "replay_start_size":	50000,
+    "starting_model":	null,
+    "target_update_frequency":	10000,
+    "train_freq":	4
+}

@@ -99,8 +99,7 @@ class OmegaAutomaton:
         else:
             q0, delta, acc, eps, shape = self.construct_from_hao(hao)
         
-        if spot_oa:
-            spot_oa.merge_edges()  # For better visualization
+        spot_oa.merge_edges()  # For better visualization
         return q0, delta, acc, eps, shape, spot_oa
         
     def hao_to_spot(self,hao):
@@ -250,13 +249,12 @@ class OmegaAutomaton:
         out: str
             The string of svg representation of the OA within div tags.
         """
-        if self.spot_oa:
-            svg = self.spot_oa.show(show)._repr_svg_()
-            colors=['⓿','❶','❷','❸','❹','❺','❻','❼','❽','❾','❿']
-            for i in range(len(colors)-1,0,-1):
-                svg = svg.replace(colors[i-1],colors[i])
-            svg = svg.replace('odd','even')
-            return '<div>%s</div>' % svg
+        svg = self.spot_oa.show(show)._repr_svg_()
+        colors=['⓿','❶','❷','❸','❹','❺','❻','❼','❽','❾','❿']
+        for i in range(len(colors)-1,0,-1):
+            svg = svg.replace(colors[i-1],colors[i])
+        svg = svg.replace('odd','even')
+        return '<div>%s</div>' % svg
 
     def random_hoa_filename(self):
         """Returns a random file name.

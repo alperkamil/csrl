@@ -19,7 +19,7 @@ Actions = ['U', 'D', 'R', 'L']
 
 
 class GridMDP():
-    """This class implements a Markov decision process where an agent can move up, down, right or left in a 2D grid world.
+    """This class implements a Markov Decision Process where an agent can mnnove up, down, right or left in a 2D grid world.
 
     Attributes
     ----------
@@ -79,7 +79,7 @@ class GridMDP():
 
     """
 
-    def __init__(self, shape, structure=None, reward=None, label=None, A=Actions, p=0.8, figsize=6, lcmap={}, cmap=plt.cm.RdBu, robust=False, secure=False, adversary=None, lexicographic=False):
+    def __init__(self, shape, structure=None, reward=None, label=None, A=Actions, p=0.8, figsize=6, lcmap={}, cmap=plt.cm.RdBu, robust=False, secure=False, adversary=None):
         self.shape = shape
         n_rows, n_cols = shape
 
@@ -92,7 +92,6 @@ class GridMDP():
         self.robust = robust
         self.secure = secure
         self.adversary = adversary
-        self.lexicographic = lexicographic
         self.p = p
         self.A = A
 
@@ -161,7 +160,7 @@ class GridMDP():
         """
         cell_type = self.structure[state]
         if cell_type in ['B', 'T']:
-            return [state, state, state], [1., 0, 0]
+            return [state], [1.]
 
         n_rows, n_cols = self.shape
         states, probs = [], []
@@ -203,15 +202,11 @@ class GridMDP():
         # If the agent cannot move in some of the directions
         probs_sum = np.sum(probs)
         if probs_sum<1:
-            if len(states)==3:
+            if len(state)==3:
                 probs = probs/np.sum(probs)
             else:
                 states.append(state)
                 probs.append(1-probs_sum)
-            
-            if len(states)<3:
-                states.append(state)
-                probs.append(0)
         
         if action_name_:
             if action_name==action_name_:

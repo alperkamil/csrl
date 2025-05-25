@@ -45,7 +45,7 @@ class ControlSynthesis:
 
     """
 
-    def __init__(self, mdp, oa=None, discount=0.9999, discountB=0.99, discountC=0.9):
+    def __init__(self, mdp, oa=None, discount=0.99, discountB=0.95, discountC=0.9):
         # TODO: Seperate the initialization code into two parts for MDPs and SGs
         self.mdp = mdp
         self.oa = oa if oa else OmegaAutomaton(' | '.join([ap+' | !'+ap for ap in (mdp.AP+set(mdp.adversary))]))  # Get transitions for every atomic propositions used in the MDP
@@ -161,7 +161,7 @@ class ControlSynthesis:
         mdp_state = np.random.randint(n_rows),np.random.randint(n_cols)
         return (np.random.randint(n_pairs),np.random.randint(n_qs)) + mdp_state
 
-    def q_learning(self,start=None,T=None,K=None,name='',tt=2**10):
+    def q_learning(self,start=None,T=None,K=None):
         """Performs the Q-learning algorithm and returns the action values.
 
         Parameters
@@ -180,39 +180,37 @@ class ControlSynthesis:
         Q: array, shape=(n_pairs,n_qs,n_rows,n_cols,n_actions) 
             The action values learned.
         """
-        if self.mdp.lexicographic:
-            return lexicographic_q(self,start,T,K,name,tt)
-        else:
-            T = T if T else np.prod(self.shape[:-1])
-            K = K if K else 100000
 
-            Q = np.zeros(self.shape)
+        T = T if T else np.prod(self.shape[:-1])
+        K = K if K else 100000
 
-            for k in range(K):
-                state = (self.shape[0]-1,self.oa.q0)+(start if start else self.mdp.random_state())
-                alpha = np.max((1.0*(1 - 1.5*k/K),0.001))
-                epsilon = np.max((1.0*(1 - 1.5*k/K),0.01))
-                for t in range(T):
+        Q = np.zeros(self.shape)
 
-                    reward = self.reward[state]
-                    gamma = self.discountB if reward else self.discount
+        for k in range(K):
+            state = (self.shape[0]-1,self.oa.q0)+(start if start else self.mdp.random_state())
+            alpha = np.max((1.0*(1 - 1.5*k/K),0.001))
+            epsilon = np.max((1.0*(1 - 1.5*k/K),0.01))
+            for t in range(T):
 
-                    # Follow an epsilon-greedy policy
-                    if np.random.rand() < epsilon or np.max(Q[state])==0:
-                        action = np.random.choice(self.A[state])  # Choose among the MDP and epsilon actions
-                    else:
-                        action = np.argmax(Q[state])
+                reward = self.reward[state]
+                gamma = self.discountB if reward else self.discount
 
-                    # Observe the next state
-                    states, probs = self.transition_probs[state][action]
-                    next_state = states[np.random.choice(len(states),p=probs)]
+                # Follow an epsilon-greedy policy
+                if np.random.rand() < epsilon or np.max(Q[state])==0:
+                    action = np.random.choice(self.A[state])  # Choose among the MDP and epsilon actions
+                else:
+                    action = np.argmax(Q[state])
 
-                    # Q-update
-                    Q[state][action] += alpha * (reward + gamma*np.max(Q[next_state]) - Q[state][action])
+                # Observe the next state
+                states, probs = self.transition_probs[state][action]
+                next_state = states[np.random.choice(len(states),p=probs)]
 
-                    state = next_state
+                # Q-update
+                Q[state][action] += alpha * (reward + gamma*np.max(Q[next_state]) - Q[state][action])
 
-            return Q
+                state = next_state
+
+        return Q
 
     def greedy_policy(self, value):
         """Returns a greedy policy for the given value function.
@@ -546,8 +544,8 @@ class ControlSynthesis:
                 pol = policy[i,q] if policy is not None else None
                 pol_ = policy_[i,q] if policy_ is not None else None
                 self.mdp.plot(val,pol,pol_,**kwargs)
-            i = IntSlider(value=0,min=0,max=value.shape[0]-1)
-            q = IntSlider(value=self.oa.q0,min=0,max=value.shape[1]-1)
+            i = IntSlider(value=0,min=0,max=self.shape[0]-1)
+            q = IntSlider(value=self.oa.q0,min=0,max=self.shape[1]-1)
             interact(plot_value,i=i,q=q)
 
     def shapley(self, T=None, name='', tt=2**15):
@@ -1140,167 +1138,3 @@ def shapley_q_dpa(self,T=None,name='',tt=2**15):
         np.save('shapley_q_robust_dpa_'+name+'_Q-'+suffix,Q)
         
         return Q
-    
-def lexicographic_q(self,start,T=None,K=None,name='',tt=2**10):
-    
-    suffix = str((T-1).bit_length())+'_'+str((K-1).bit_length())
-    self.oa.spot_oa = None
-    with open('lexicographic_q_'+name+'_csrl-'+suffix+'.pkl','wb') as f:
-        pickle.dump(self,f)
-    
-    n_danger = 3
-    n_qs = self.oa.shape[1]
-    n_rows, n_cols = self.mdp.shape
-    n_mdp_actions = len(self.mdp.A)
-    n_actions = n_mdp_actions+n_qs
-    shape = (n_danger,n_qs,n_rows,n_cols,n_actions)
-    
-    A = np.empty(shape,dtype=np.bool_)
-    A[:] = False
-    for i,q,r,c in product(range(n_danger),range(n_qs),range(n_rows),range(n_cols)):
-        for action in range(n_mdp_actions):
-            A[i,q,r,c,action] = True
-        for q_ in self.oa.eps[q]:
-            A[i,q,r,c,n_mdp_actions+q_]=True
-    
-    transition_probs = np.zeros(shape+(3,))
-    transition_states = np.zeros(shape+(3,4),dtype=np.int)
-    for i,q,r,c,action in product(range(n_danger),range(n_qs),range(n_rows),range(n_cols),range(n_actions)):
-        if A[i,q,r,c,action]:
-            if 'd' in self.mdp.label[r,c]:
-                i_=min(n_danger-1,i+1)
-            else:
-                i_=0
-                
-            if action < n_mdp_actions:
-                q_ = self.oa.delta[q][self.mdp.label[r,c]]
-                for j,(s,p) in enumerate(zip(*self.mdp.get_transition_prob((r,c),self.mdp.A[action]))):
-                    transition_probs[i,q,r,c,action][j] = p
-                    transition_states[i,q,r,c,action][j] = (i_,q_)+s
-            else:
-                q_ = action-n_mdp_actions
-                transition_probs[i,q,r,c,action][0] = 1
-                transition_probs[i,q,r,c,action][1] = 0
-                transition_probs[i,q,r,c,action][2] = 0
-                transition_states[i,q,r,c,action][0] = (i_,q_,r,c)
-                transition_states[i,q,r,c,action][1] = (i_,q_,r,c)
-                transition_states[i,q,r,c,action][2] = (i_,q_,r,c)
-    
-    state0 = (0,self.oa.q0)+start
-    gamma = self.discountB
-    r_psi = (1-gamma)**2
-    r_phi = (1-gamma)
-    
-    reward = np.zeros(shape[:-1])
-    for i,q in product(range(n_danger),range(n_qs)):
-        reward[i,q][:] = self.mdp.reward
-    
-    reward_psi = np.zeros(shape[:-1])
-    for i in range(n_danger-1):
-        reward_psi[i][:] = r_psi
-        
-    reward_phi = np.zeros(shape[:-1])
-    for i,q,r,c in product(range(n_danger),range(n_qs),range(n_rows),range(n_cols)):
-        if self.oa.acc[q][self.mdp.label[r,c]][0]:
-            reward_phi[i,q,r,c] = r_phi
-    
-#     Q_psi = np.zeros(shape)
-#     Q_phi = np.zeros(shape)
-    Q = np.zeros(shape)
-    Q_psi = np.ones(shape)
-    Q_psi[2][:] = 0
-    Q_phi = np.ones(shape)
-    Q_phi[:,2][:] = 0
-    Q = np.zeros(shape)
-    for i,q,r,c,action in product(range(n_danger),range(n_qs),range(n_rows),range(n_cols),range(n_actions)):
-        if not A[i,q,r,c,action]:
-            Q_psi[i,q,r,c,action] = Q_phi[i,q,r,c,action] = 0
-    
-    Q_psi[:,:,1,3,:] = 0
-    Q_phi[:,:,1,3,:] = 0
-    Q[:,:,1,3,:] =  0
-    
-    @jit(nopython=True)
-    def numba_lexicogprahic_q(n_danger,n_actions,A,transition_probs,transition_states,state0,gamma,r_psi,r_phi,reward,reward_psi,reward_phi,Q_psi,Q_phi,Q,T,K,tt):
-
-        for _ in range(K):
-            epsilon = max(0.5*tt/(_+tt),0.005)
-            alpha = max(0.5*tt/(_+tt),0.05)
-            tau = max(0.5*tt/(_+tt),0.05)
-            upsilon = max(0.5*tt/(_+tt),0.05)
-            
-            state = state0
-            prev_state = state
-            prev_action = 0
-            for t in range(T):
-                
-                A_ = []
-                max_psi = 0
-                for action in range(n_actions):
-                    if t<epsilon*100 and action >= 4:
-                        break
-                    if A[state][action]:
-                        A_.append(action)
-                        if Q_psi[state][action] > max_psi:
-                            max_psi = Q_psi[state][action]
-                
-                A_psi = []
-                max_phi = 0
-                for action in A_:
-                    if Q_psi[state][action] > max_psi-tau:
-                        A_psi.append(action)
-                        if Q_phi[state][action] > max_phi:
-                            max_phi = Q_phi[state][action]
-                
-                A_phi = []
-                max_q = 0
-                max_action = 0
-                for action in A_psi:
-                    if Q_phi[state][action] > max_phi-tau:
-                        A_phi.append(action)
-                        if Q[state][action] > max_q:
-                            max_q = Q[state][action]
-                            max_action = action
-                        
-                
-                if random.random() < epsilon:
-                    action = A_[np.random.randint(len(A_))]
-                elif random.random() < 2*epsilon:
-                    action = A_psi[np.random.randint(len(A_psi))]
-                elif random.random() < upsilon or max_q==0:
-                    action = A_phi[np.random.randint(len(A_phi))]
-                else:
-                    action = max_action
-                    
-                if t>0:
-                    q_psi = Q_psi[prev_state][prev_action]
-                    Q_psi[prev_state][prev_action] = q_psi + alpha * (reward_psi[state] + (1-r_psi)*max_psi - q_psi)
-                    
-                    q_phi = Q_phi[prev_state][prev_action]
-                    gamma_phi = (1-r_phi) if reward_phi[state]>0 else (1-r_phi*r_phi)
-                    Q_phi[prev_state][prev_action] = q_phi + alpha * (reward_phi[state] + gamma_phi*max_phi - q_phi)
-                
-                    q = Q[prev_state][prev_action]
-                    q_ = Q[state][action]
-                    Q[prev_state][prev_action] = q + alpha * (reward[state] + gamma*q_ - q)
-                    
-                    if state[0]==2 or state[1]==2:
-                        break
-                
-                prev_state = state
-                prev_action = action
-                
-                
-                # Observe the next state
-                p = transition_probs[prev_state][prev_action]
-                cumsum = np.cumsum(p)
-                i=np.searchsorted(cumsum,random.random())
-                s = transition_states[prev_state][prev_action][i]
-                state = (s[0],s[1],s[2],s[3])
-                
-                
-    numba_lexicogprahic_q(n_danger,n_actions,A,transition_probs,transition_states,state0,gamma,r_psi,r_phi,reward,reward_psi,reward_phi,Q_psi,Q_phi,Q,T,K,tt)
-    suffix = str((T-1).bit_length())+'_'+str((K-1).bit_length())
-#     np.save('minimax_q_robust_dpa_'+name+'_Q-'+suffix,Q)
-    
-    return Q_psi,Q_phi,Q
