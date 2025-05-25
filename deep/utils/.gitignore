@@ -1,9 +1,0 @@
-.ipynb_checkpoints/*
-__pycache__/*
-*.npy
-*.eps
-*/.ipynb_checkpoints/*
-*/__pycache__/*
-backup/*
-.virtual_documents/*
-*.log
