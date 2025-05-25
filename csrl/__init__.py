@@ -69,16 +69,29 @@ class ControlSynthesis:
         if mdp.robust:  # This is for the scenario where the transition probabilities are determined by the joint actions of both players
             self.transition_probs = np.empty(self.shape+(len(self.mdp.A),),dtype=np.object)  
             for i,q,r,c in self.states():
-                for action in self.A[i,q,r,c]:
+                for action in range(len(self.mdp.A)):
                     for action_ in range(len(self.mdp.A)):
-                        # TODO: This if condition is always true, so remove it
-                        if action < len(self.mdp.A):  # MDP actions  
-                            q_ = self.oa.delta[q][mdp.label[r,c]]  # OA transition
-                            mdp_states, probs = mdp.get_transition_prob((r,c),mdp.A[action],mdp.A[action_])  # MDP transition
-                            self.transition_probs[i,q,r,c][action][action_] = [(i,q_,)+s for s in mdp_states], probs
-                        else:  # epsilon-actions
-                            self.transition_probs[i,q,r,c][action][action_] = ([(i,action-len(mdp.A),r,c)], [1.])
-
+                        q_ = self.oa.delta[q][mdp.label[r,c]]  # OA transition
+                        mdp_states, probs = mdp.get_transition_prob((r,c),mdp.A[action],mdp.A[action_])  # MDP transition
+                        self.transition_probs[i,q,r,c][action][action_] = [(i,q_,)+s for s in mdp_states], probs
+        
+        elif mdp.secure:
+            self.transition_probs = np.empty(self.oa.shape+mdp.shape+(len(self.mdp.A),len(self.mdp.A)),dtype=np.object)
+            for i,q,r,c in self.states():
+                for action in range(len(self.mdp.A)):
+                    for action_ in range(len(self.mdp.A)):
+                        mdp_states, probs = mdp.get_transition_prob((r,c),mdp.A[action])
+                        expected_state = mdp_states[np.argmax(probs)]
+                        mdp_states_, probs_ = mdp.get_transition_prob((r,c),mdp.A[action_])
+                        
+                        states = []
+                        label = mdp.label[r,c] + ('m',) if action != action_ else mdp.label[r,c]
+                        for s in mdp_states_:
+                            l = label + ('u',) if s != expected_state else label
+                            q_ = self.oa.delta[q][l]
+                            states.append((i,q_)+s)
+                        self.transition_probs[i,q,r,c][action][action_] = states, probs_
+            
         elif mdp.adversary is not None:  # This is for two independent players on the grid
             self.transition_probs = np.empty(mdp.shape+(len(self.mdp.A),),dtype=np.object)  # Standard transition probs
             for r,c in self.states(short=True):
@@ -269,7 +282,8 @@ class ControlSynthesis:
 
             if plot:
                 def plot_agent(t):
-                    self.mdp.plot(policy=policy[episode[t][:2]],agent=episode[t][2:])
+                    val = value[episode[t][:2]] if value is not None else None
+                    self.mdp.plot(value=val,policy=policy[episode[t][:2]],agent=episode[t][2:])
                 t=IntSlider(value=0,min=0,max=T-1)
                 interact(plot_agent,t=t)
 
@@ -285,40 +299,124 @@ class ControlSynthesis:
             return episode
 
         else:
-
-            k,q = (self.shape[0]-1,self.oa.q0)
-            s1 = start if start else self.mdp.random_state()
-            s2 = start_ if start_ else self.mdp.random_state()
-            
-            label = self.mdp.label[s1]
-            if s1 == s2:
-                label = self.mdp.adversary + label
-            q = self.oa.delta[q][label]  # OA transition
-        
-            episode = [(k,q)+s1+s2]
-            for t in range(T):
-                
-                states, probs = self.transition_probs[s1][policy[(k,q)+s1+s2]]
-                s1 = random.choices(states,weights=probs)[0]
-
-                states, probs = self.transition_probs[s2][policy_[(k,q)+s1+s2]]
-                s2 = random.choices(states,weights=probs)[0]
+            if self.mdp.adversary:
+                i,q = (0,self.oa.q0)
+                s1 = start if start else self.mdp.random_state()
+                s2 = start_ if start_ else self.mdp.random_state()
 
                 label = self.mdp.label[s1]
                 if s1 == s2:
                     label = self.mdp.adversary + label
                 q = self.oa.delta[q][label]  # OA transition
 
-                episode.append((k,q)+s1+s2)
+                episode = [(i,q)+s1+s2]
+                for t in range(T):
+                    
+                    a1 = policy[(i,q)+s1+s2]
+                    if a1>= len(self.mdp.A):
+                        i=a1-len(self.mdp.A)
+                        a1 = policy[(i,q)+s1+s2]
+                    states, probs = self.transition_probs[s1][a1]
+                    s1 = random.choices(states,weights=probs)[0]
+                    
+                    a2 = policy_[(i,q)+s1+s2]
+                    states, probs = self.transition_probs[s2][a2]
+                    s2 = random.choices(states,weights=probs)[0]
 
-            if plot:
-                def plot_agent(t):
-                    k,q,r1,c1,r2,c2 = episode[t]
-                    self.mdp.plot(policy=policy[k,q,:,:,r2,c2],agent=(r1,c1),agent_=(r2,c2))
-                t=IntSlider(value=0,min=0,max=T-1)
-                interact(plot_agent,t=t)
+                    label = self.mdp.label[s1]
+                    if s1 == s2:
+                        label = self.mdp.adversary + label
+                    q = self.oa.delta[q][label]  # OA transition
 
-            return episode
+                    episode.append((i,q)+s1+s2)
+
+                if plot:
+                    def plot_agent(t):
+                        i,q,r1,c1,r2,c2 = episode[t]
+                        val = value[i,q,:,:,r2,c2] if value is not None else None
+                        self.mdp.plot(value=val,policy=policy[i,q,:,:,r2,c2],agent=(r1,c1),agent_=(r2,c2))
+                    t=IntSlider(value=0,min=0,max=T-1)
+                    interact(plot_agent,t=t)
+
+                if animation:
+                    pad=5
+                    if not os.path.exists(animation):
+                        os.makedirs(animation)
+                    for t in range(T):
+                        i,q,r1,c1,r2,c2 = episode[t]
+                        self.mdp.plot(value=value[i,q,:,:,r2,c2],policy=policy[i,q,:,:,r2,c2],agent=(r1,c1),agent_=(r2,c2),save=animation+os.sep+str(t).zfill(pad)+'.png',title='Time: '+str(t)+',  Accepting Pair: '+str(i+1)+',  DRA State (Mode): '+str(q))
+                        plt.close()
+                    os.system('ffmpeg -r 3 -i '+animation+os.sep+'%0'+str(pad)+'d.png -vcodec libx264 -y '+animation+'.mp4')
+                return episode
+            
+            
+            if self.mdp.robust:
+                state = (0,self.oa.q0)+(start if start else self.mdp.random_state())
+                episode = [state]
+                for t in range(T):
+                    i,q,r,c = state
+                    a1 = policy[state]
+                    if a1 >= len(self.mdp.A):
+                        i=a1-len(self.mdp.A)
+                        state = i,q,r,c
+                        a1 = policy[state]
+                    a2 = policy_[state]
+                    
+                    states, probs = self.transition_probs[state][a1][a2]
+                    state = states[np.random.choice(len(states),p=probs)]
+                    episode.append((i,q,r,c))
+                    
+                if plot:
+                    def plot_agent(t):
+                        val = value[episode[t][:2]] if value is not None else None
+                        self.mdp.plot(value=val,policy=policy[episode[t][:2]],policy_=policy_[episode[t][:2]],agent=episode[t][2:])
+                    t=IntSlider(value=0,min=0,max=T-1)
+                    interact(plot_agent,t=t)
+
+                if animation:
+                    pad=5
+                    if not os.path.exists(animation):
+                        os.makedirs(animation)
+                    for t in range(T):
+                        self.mdp.plot(value=value[episode[t][:2]],policy=policy[episode[t][:2]],policy_=policy_[episode[t][:2]],agent=episode[t][2:],save=animation+os.sep+str(t).zfill(pad)+'.png',title='Time: '+str(t)+',  Accepting Pair: '+str(episode[t][0]+1)+',  DRA State (Mode): '+str(episode[t][1]))
+                        plt.close()
+                    os.system('ffmpeg -r 3 -i '+animation+os.sep+'%0'+str(pad)+'d.png -vcodec libx264 -y '+animation+'.mp4')
+
+                return episode
+            
+            if self.mdp.secure:
+                state = (0,self.oa.q0)+(start if start else self.mdp.random_state())
+                episode = [state]
+                for t in range(T):
+                    i,q,r,c = state
+                    a1 = policy[state]
+                    if a1 >= len(self.mdp.A):
+                        i=a1-len(self.mdp.A)
+                        state = i,q,r,c
+                        a1 = policy[state]
+                    a2 = policy_[state]
+                    
+                    states, probs = self.transition_probs[state][a1][a2]
+                    state = states[np.random.choice(len(states),p=probs)]
+                    episode.append((i,q,r,c))
+                    
+                if plot:
+                    def plot_agent(t):
+                        val = value[episode[t][:2]] if value is not None else None
+                        self.mdp.plot(value=val,policy=policy[episode[t][:2]],policy_=policy_[episode[t][:2]],agent=episode[t][2:])
+                    t=IntSlider(value=0,min=0,max=T-1)
+                    interact(plot_agent,t=t)
+
+                if animation:
+                    pad=5
+                    if not os.path.exists(animation):
+                        os.makedirs(animation)
+                    for t in range(T):
+                        self.mdp.plot(value=value[episode[t][:2]],policy=policy[episode[t][:2]],policy_=policy_[episode[t][:2]],agent=episode[t][2:],save=animation+os.sep+str(t).zfill(pad)+'.png',title='Time: '+str(t)+',  Accepting Pair: '+str(episode[t][0]+1)+',  DRA State (Mode): '+str(episode[t][1]))
+                        plt.close()
+                    os.system('ffmpeg -r 3 -i '+animation+os.sep+'%0'+str(pad)+'d.png -vcodec libx264 -y '+animation+'.mp4')
+
+                return episode
 
     def plot(self, value=None, policy=None, policy_=None, iq=None, rc=None, rc_=None, **kwargs):
         """Plots the values of the states as a color matrix with two sliders.
@@ -386,7 +484,7 @@ class ControlSynthesis:
             q = IntSlider(value=self.oa.q0,min=0,max=self.shape[1]-1)
             interact(plot_value,i=i,q=q)
 
-    def shapley(self, T=None):
+    def shapley(self, T=None, name='', tt=2**15):
         """Performs the Shapley's algorithm and returns the value function. It requires at least one parameter.
 
         Parameters
@@ -404,7 +502,7 @@ class ControlSynthesis:
             
         if self.mdp.adversary:
             suffix = str((T-1).bit_length())
-            with open('shapley_adversary_csrl-'+suffix+'.pkl','wb') as f:
+            with open('shapley_adversary_'+name+'_csrl-'+suffix+'.pkl','wb') as f:
                 pickle.dump(self,f)
 
             states = list(self.states(second=True))
@@ -459,16 +557,16 @@ class ControlSynthesis:
                 
                 t+=1
                 
-                if t>=2**10 and t.bit_length() != (t-1).bit_length():
-                    suffix = str((t-1).bit_length())
-                    np.save('shapley_adversary_Q-Q_-'+suffix,(Q,Q_))
+                if t>=tt-1 and t.bit_length() != (t+1).bit_length():
+                    suffix = str(t.bit_length())
+                    np.save('shapley_adversary_'+name+'_Q-Q_-'+suffix,(Q,Q_))
                 
             return Q,Q_
 
         
-        else:
+        elif self.mdp.robust:
             suffix = str((T-1).bit_length())
-            with open('shapley_robust_csrl-'+suffix+'.pkl','wb') as f:
+            with open('shapley_robust_'+name+'_csrl-'+suffix+'.pkl','wb') as f:
                 pickle.dump(self,f)
                 
             states = list(self.states(second=False))
@@ -496,22 +594,59 @@ class ControlSynthesis:
                 
                 t+=1
                 
-                if t>=2**15 and t.bit_length() != (t-1).bit_length():
-                    suffix = str((t-1).bit_length())
-                    np.save('shapley_robust_Q-'+suffix,Q)
+                if t>=tt-1 and t.bit_length() != (t+1).bit_length():
+                    suffix = str(t.bit_length())
+                    np.save('shapley_robust_'+name+'_Q-'+suffix,Q)
+            
+            return Q
+        
+        
+        elif self.mdp.secure:
+            suffix = str((T-1).bit_length())
+            with open('shapley_secure_'+name+'_csrl-'+suffix+'.pkl','wb') as f:
+                pickle.dump(self,f)
+                
+            states = list(self.states(second=False))
+            shape = self.oa.shape+self.mdp.shape+(n_actions,n_actions)
+            Q = np.zeros(shape)
+            discount = np.copy(self.reward)
+            for state in states:
+                discount[state] = self.discountB if self.reward[state]>0 else (self.discountC if self.reward[state]<0 else self.discount)
+        
+            t = 0
+            while t < T:
+                value = np.max(np.min(Q,axis=-1),axis=-1)
+                for state in states:
+                    gamma, reward, probs = discount[state], self.reward[state], self.transition_probs[state]
+                    for j in range(n_actions):
+                        for k in range(n_actions):
+                            val = 0
+                            for s,p in zip(*probs[j][k]):
+                                val += value[s]*p
+                            Q[state][j][k] = reward + gamma*val
+                            
+                eps_Q = self.discountC*np.max(Q,axis=0)
+                for i in range(n_pairs):
+                    Q[i] = np.maximum(Q[i],eps_Q)
+                
+                t+=1
+                
+                if t>=tt-1 and t.bit_length() != (t+1).bit_length():
+                    suffix = str(t.bit_length())
+                    np.save('shapley_secure_'+name+'_Q-'+suffix,Q)
             
             return Q
     
-    def minimax_q(self,start=None,start_=None,T=None,K=None):
+    def minimax_q(self,start=None,start_=None,T=None,K=None,name='',tt=2**15):
         n_actions = len(self.mdp.A)
         n_pairs = self.oa.shape[0]
         init = list(zip(*np.where(self.mdp.structure == 'E')))
         not_init = set(zip(*np.where(self.mdp.structure != 'E')))
         dC, dB, d = self.discountC, self.discountB, self.discount
-        tt = 2**16
+        
         if self.mdp.adversary:
             suffix = str((T-1).bit_length())+'_'+str((K-1).bit_length())
-            with open('minimax_q_adversary_csrl-'+suffix+'.pkl','wb') as f:
+            with open('minimax_q_adversary_'+name+'_csrl-'+suffix+'.pkl','wb') as f:
                 pickle.dump(self,f)
             
             shape = self.oa.shape + self.mdp.shape + self.mdp.shape + (n_actions,)
@@ -605,16 +740,94 @@ class ControlSynthesis:
                     if s1 in not_init:
                         break
                         
-                if _>=2*tt and _.bit_length() != (_-1).bit_length():
-                    suffix = str((T-1).bit_length())+'_'+str((_-1).bit_length())
-                    np.save('minimax_q_adversary_Q-Q_-'+suffix,(Q,Q_))
+                if _>=tt-1 and _.bit_length() != (_+1).bit_length():
+                    suffix = str((T-1).bit_length())+'_'+str((K-1).bit_length())+'_'+str(_.bit_length())
+                    np.save('minimax_q_adversary_'+name+'_Q-Q_-'+suffix,(Q,Q_))
 
             return Q, Q_
         
         
-        else:
+        elif self.mdp.robust:
             suffix = str((T-1).bit_length())+'_'+str((K-1).bit_length())
-            with open('minimax_q_robust_csrl-'+suffix+'.pkl','wb') as f:
+            with open('minimax_q_robust_'+name+'_csrl-'+suffix+'.pkl','wb') as f:
+                pickle.dump(self,f)
+            
+            shape = self.oa.shape+self.mdp.shape+(n_actions,n_actions)
+            Q = np.zeros(shape)
+            
+            discount = np.copy(self.reward)
+            for state in self.states(second=False):
+                discount[state] = dB if self.reward[state]>0 else (dC if self.reward[state]<0 else d)
+                
+            for _ in range(K):
+                epsilon = max(0.5-_/tt,0.05)
+                alpha = max(0.5-_/tt,0.05)
+                
+                i = 0 if start else random.randrange(n_pairs)
+                q = self.oa.q0 if start else random.randrange(self.oa.shape[1]-1)
+                state = (i,q)+(start if start else random.choice(init))
+                
+                next_i = 0
+                max_action, min_action, max_q = 0, 0, 0
+                for t in range(T):
+                    # Follow an epsilon-greedy policy
+                    if max_q==0 or random.random() < epsilon:
+                        max_action = random.randrange(n_actions)
+                        min_action = random.randrange(n_actions)
+                        state = (random.randrange(n_pairs),) + state[1:]
+                        max_q = Q[state][max_action][min_action]
+                
+                    # Observe the next state
+                    states, probs = self.transition_probs[state][max_action][min_action]
+                    next_state = random.choices(states,weights=probs)[0]
+
+                    next_max_action, next_min_action, next_max_q = 0, 0, 0
+                    next_i = state[0]
+                    if _>tt:
+                        for i in range(n_pairs):
+                            g = 1 if next_state[0]==i else min(2*_/K,dC)
+                            s = (i,) + next_state[1:]
+                            for j in range(n_actions):
+                                action_, min_q = 0, 1
+                                for k in range(n_actions):
+                                    if g*Q[s][j][k] < min_q:
+                                        action_ = k
+                                        min_q = g*Q[s][j][k]
+                                if min_q > next_max_q:
+                                    next_i = i
+                                    next_max_action = j
+                                    next_min_action = action_
+                                    next_max_q = min_q
+                    else:
+                        for j in range(n_actions):
+                            action_, min_q = 0, 1
+                            for k in range(n_actions):
+                                if Q[next_state][j][k] < min_q:
+                                    action_ = k
+                                    min_q = Q[next_state][j][k]
+                            if min_q > next_max_q:
+                                next_max_action = j
+                                next_min_action = action_
+                                next_max_q = min_q
+
+                    reward = self.reward[state]
+                    gamma = discount[state]
+                    
+                    # Q-update
+                    Q[state][max_action][min_action] = max_q + alpha * (reward + gamma*next_max_q - max_q)
+
+                    state, max_action, min_action, max_q = (next_i,)+next_state[1:], next_max_action, next_min_action, next_max_q
+
+                        
+                if _>=tt-1 and _.bit_length() != (_+1).bit_length():
+                    suffix = str((T-1).bit_length())+'_'+str((K-1).bit_length())+'_'+str(_.bit_length())
+                    np.save('minimax_q_robust_'+name+'_Q-'+suffix,Q)
+                
+            return Q
+        
+        elif self.mdp.secure:
+            suffix = str((T-1).bit_length())+'_'+str((K-1).bit_length())
+            with open('minimax_q_secure_'+name+'_csrl-'+suffix+'.pkl','wb') as f:
                 pickle.dump(self,f)
             
             shape = self.oa.shape+self.mdp.shape+(n_actions,n_actions)
@@ -683,11 +896,9 @@ class ControlSynthesis:
 
                     state, max_action, min_action, max_q = (next_i,)+next_state[1:], next_max_action, next_min_action, next_max_q
                     
-#                     if (state[2],state[3]) in not_init:
-#                         break
                         
-                if _>=2*tt and _.bit_length() != (_-1).bit_length():
-                    suffix = str((T-1).bit_length())+'_'+str((_-1).bit_length())
-                    np.save('minimax_q_robust_Q-'+suffix,Q)
+                if _>=tt-1 and _.bit_length() != (_+1).bit_length():
+                    suffix = str((T-1).bit_length())+'_'+str((K-1).bit_length())+'_'+str(_.bit_length())
+                    np.save('minimax_q_secure_'+name+'_Q-'+suffix,Q)
                 
             return Q

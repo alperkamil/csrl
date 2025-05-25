@@ -79,7 +79,7 @@ class GridMDP():
 
     """
 
-    def __init__(self, shape, structure=None, reward=None, label=None, A=Actions, p=0.8, figsize=6, lcmap={}, cmap=plt.cm.RdBu, robust=False, adversary=None):
+    def __init__(self, shape, structure=None, reward=None, label=None, A=Actions, p=0.8, figsize=6, lcmap={}, cmap=plt.cm.RdBu, robust=False, secure=False, adversary=None):
         self.shape = shape
         n_rows, n_cols = shape
 
@@ -90,6 +90,7 @@ class GridMDP():
         self.label.fill(()) if label is None else None
 
         self.robust = robust
+        self.secure = secure
         self.adversary = adversary
         self.p = p
         self.A = A
@@ -268,8 +269,6 @@ class GridMDP():
             value = self.reward
         else:
             value = np.copy(value)
-            for h in hidden:
-                value[h] = 0
 
         # Dimensions
         n_rows, n_cols = self.shape
@@ -320,41 +319,41 @@ class GridMDP():
             if (i,j) in path:
                 if 'u' in path[i,j]:
                     rect=plt.Rectangle((j-0.4,i+0.4),+0.8,-0.9,color='lightsteelblue')
-                    plt.gcf().gca().add_artist(rect)
+                    ax.add_artist(rect)
                 if 'd' in path[i,j]:
                     rect=plt.Rectangle((j-0.4,i-0.4),+0.8,+0.9,color='lightsteelblue')
-                    plt.gcf().gca().add_artist(rect)
+                    ax.add_artist(rect)
                 if 'r' in path[i,j]:
                     rect=plt.Rectangle((j-0.4,i-0.4),+0.9,+0.8,color='lightsteelblue')
-                    plt.gcf().gca().add_artist(rect)
+                    ax.add_artist(rect)
                 if 'l' in path[i,j]:
                     rect=plt.Rectangle((j+0.4,i-0.4),-0.9,+0.8,color='lightsteelblue')
-                    plt.gcf().gca().add_artist(rect)
+                    ax.add_artist(rect)
 
             cell_type = self.structure[i,j]
             # If there is an obstacle
             if cell_type == 'B':
-                circle=plt.Circle((j,i),0.49,color='k',fc='darkgray')
-                plt.gcf().gca().add_artist(circle)
+                circle=plt.Circle((j,i),0.48,color='k',fc='darkgray')
+                ax.add_artist(circle)
                 continue
             # If it is a trap cell
             elif cell_type == 'T':
-                circle=plt.Circle((j,i),0.49,color='k',fill=False)
-                plt.gcf().gca().add_artist(circle)
+                circle=plt.Circle((j,i),0.48,color='k',fill=False)
+                ax.add_artist(circle)
 
             # If it is a directional cell (See the description of the class attribute 'structure' for details)
             elif cell_type == 'U':
                 triangle = plt.Polygon([[j,i],[j-0.5,i+0.5],[j+0.5,i+0.5]], color='gray')
-                plt.gca().add_patch(triangle)
+                ax.add_patch(triangle)
             elif cell_type == 'D':
                 triangle = plt.Polygon([[j,i],[j-0.5,i-0.5],[j+0.5,i-0.5]], color='gray')
-                plt.gca().add_patch(triangle)
+                ax.add_patch(triangle)
             elif cell_type == 'R':
                 triangle = plt.Polygon([[j,i],[j-0.5,i+0.5],[j-0.5,i-0.5]], color='gray')
-                plt.gca().add_patch(triangle)
+                ax.add_patch(triangle)
             elif cell_type == 'L':
                 triangle = plt.Polygon([[j,i],[j+0.5,i+0.5],[j+0.5,i-0.5]], color='gray')
-                plt.gca().add_patch(triangle)
+                ax.add_patch(triangle)
 
             # If the background is too dark, make the text white
             color = 'snow' if np.abs(value[i, j]) > threshold/2 else 'black'
@@ -362,70 +361,82 @@ class GridMDP():
             acolor_ = 'red' if np.abs(value[i, j]) > threshold/2 else 'red'
 
             if policy is None:  # Print the values
-                v = str(int(round(100*value[i,j]))).zfill(3)
-                plt.text(j, i, '$'+v[0]+'.'+v[1:]+'$',horizontalalignment='center',color=color,fontname=fontname,fontsize=fontsize+2)  # Value
+                if (i,j) not in hidden:
+                    v = str(int(round(100*value[i,j]))).zfill(3)
+                    plt.text(j, i, '$'+v[0]+'.'+v[1:]+'$',horizontalalignment='center',color=color,fontname=fontname,fontsize=fontsize+2)  # Value
 
             # Draw the arrows to visualize the policy
             elif value[i,j] > 0 or value is self.reward:
-                if policy[i,j] >= len(self.A):
-                    plt.text(j, i-0.05,r'$\varepsilon_'+str(policy[i,j]-len(self.A)+1)+'$', horizontalalignment='center',color=color,fontsize=fontsize+5)
-                else:
-                    action_name = self.A[policy[i,j]]
-                    pos = j,i
-                    if action_name == 'U':
-                        plt.arrow(j,i,0,-0.2,head_width=.2,head_length=.15,color=acolor)
-                    elif action_name == 'D':
-                        pos = j,i-.3
-                        plt.arrow(j,i-.3,0,0.2,head_width=.2,head_length=.15,color=acolor)
-                    elif action_name == 'R':
-                        pos = j-.15,i-0.15
-                        plt.arrow(j-.15,i-0.15,0.2,0,head_width=.2,head_length=.15,color=acolor)
-                    elif action_name == 'L':
-                        pos = j+.15,i-0.15
-                        plt.arrow(j+.15,i-0.15,-0.2,0,head_width=.2,head_length=.15,color=acolor)
+                if (i,j) not in hidden:
+                    if policy[i,j] >= len(self.A):
+                        plt.text(j, i-0.05,r'$\varepsilon_'+str(policy[i,j]-len(self.A)+1)+'$', horizontalalignment='center',color=color,fontsize=fontsize+5)
+                    else:
+                        action_name = self.A[policy[i,j]]
+                        pos = j,i
+                        if action_name == 'U':
+                            plt.arrow(j,i,0,-0.2,head_width=.2,head_length=.15,color=acolor)
+                        elif action_name == 'D':
+                            pos = j,i-.3
+                            plt.arrow(j,i-.3,0,0.2,head_width=.2,head_length=.15,color=acolor)
+                        elif action_name == 'R':
+                            pos = j-.15,i-0.15
+                            plt.arrow(j-.15,i-0.15,0.2,0,head_width=.2,head_length=.15,color=acolor)
+                        elif action_name == 'L':
+                            pos = j+.15,i-0.15
+                            plt.arrow(j+.15,i-0.15,-0.2,0,head_width=.2,head_length=.15,color=acolor)
 
-                    if policy_ is not None:
-                        action_name_ = self.A[policy_[i,j]]
-                        if action_name==action_name_:
-                            dp = 1
-                        elif (action_name=='U' and action_name_=='D') or (action_name=='D' and action_name_=='U') or \
-                             (action_name=='R' and action_name_=='L') or (action_name=='L' and action_name_=='R'):
-                            dp = -1
-                        else:
-                            dp = 0
-                        
-                        if dp==0:
-                            if action_name_ == 'U':
-                                plt.arrow(pos[0],pos[1],0,-0.1,head_width=.13,head_length=.07,color=acolor_)
-                            elif action_name_ == 'D':
-                                plt.arrow(pos[0],pos[1],0,0.1,head_width=.13,head_length=.07,color=acolor_)
-                            elif action_name_ == 'R':
-                                plt.arrow(pos[0],pos[1],0.1,0,head_width=.13,head_length=.07,color=acolor_)
-                            elif action_name_ == 'L':
-                                plt.arrow(pos[0],pos[1],-0.1,0,head_width=.13,head_length=.07,color=acolor_)
-                        elif dp==-1:
-                            if action_name_ == 'U' or action_name_ == 'D':
-                                plt.arrow(pos[0],pos[1],0.1,0,head_width=.13,head_length=.07,color=acolor_)
-                                plt.arrow(pos[0],pos[1],-0.1,0,head_width=.13,head_length=.07,color=acolor_)
-                            else:
-                                plt.arrow(pos[0],pos[1],0,-0.1,head_width=.13,head_length=.07,color=acolor_)
-                                plt.arrow(pos[0],pos[1],0,0.1,head_width=.13,head_length=.07,color=acolor_)
+                        if policy_ is not None:
+                            action_name_ = self.A[policy_[i,j]]
+                            if self.robust:
+                                if action_name==action_name_:
+                                    dp = 1
+                                elif (action_name=='U' and action_name_=='D') or (action_name=='D' and action_name_=='U') or \
+                                     (action_name=='R' and action_name_=='L') or (action_name=='L' and action_name_=='R'):
+                                    dp = -1
+                                else:
+                                    dp = 0
+
+                                if dp==0:
+                                    if action_name_ == 'U':
+                                        plt.arrow(pos[0],pos[1],0,-0.1,head_width=.13,head_length=.07,color=acolor_)
+                                    elif action_name_ == 'D':
+                                        plt.arrow(pos[0],pos[1],0,0.1,head_width=.13,head_length=.07,color=acolor_)
+                                    elif action_name_ == 'R':
+                                        plt.arrow(pos[0],pos[1],0.1,0,head_width=.13,head_length=.07,color=acolor_)
+                                    elif action_name_ == 'L':
+                                        plt.arrow(pos[0],pos[1],-0.1,0,head_width=.13,head_length=.07,color=acolor_)
+                                elif dp==-1:
+                                    if action_name_ == 'U' or action_name_ == 'D':
+                                        plt.arrow(pos[0],pos[1],0.1,0,head_width=.13,head_length=.07,color=acolor_)
+                                        plt.arrow(pos[0],pos[1],-0.1,0,head_width=.13,head_length=.07,color=acolor_)
+                                    else:
+                                        plt.arrow(pos[0],pos[1],0,-0.1,head_width=.13,head_length=.07,color=acolor_)
+                                        plt.arrow(pos[0],pos[1],0,0.1,head_width=.13,head_length=.07,color=acolor_)
+                            elif self.secure and action_name != action_name_:
+                                if action_name_ == 'U':
+                                    plt.arrow(pos[0],pos[1],0,-0.05,head_width=.15,head_length=.1,color=acolor_)
+                                elif action_name_ == 'D':
+                                    plt.arrow(pos[0],pos[1],0,0.05,head_width=.15,head_length=.1,color=acolor_)
+                                elif action_name_ == 'R':
+                                    plt.arrow(pos[0],pos[1],0.05,0,head_width=.15,head_length=.1,color=acolor_)
+                                elif action_name_ == 'L':
+                                    plt.arrow(pos[0],pos[1],-0.05,0,head_width=.15,head_length=.1,color=acolor_)
             # Plot the labels
             surplus = 0.2 if (i,j) in hidden else 0
             if len(self.label[i,j])==1:
                 l=self.label[i,j][0]
                 if l in self.lcmap:
                     circle=plt.Circle((j, i+0.25-surplus),0.2+surplus/2,color=self.lcmap[l])
-                    plt.gcf().gca().add_artist(circle)
+                    ax.add_artist(circle)
 
             elif len(self.label[i,j])==2:
                 l1, l2 = self.label[i,j]
                 if l1 in self.lcmap:
                     circle=plt.Circle((j-0.2, i+0.25-surplus),0.2+surplus/2,color=self.lcmap[l1])
-                    plt.gcf().gca().add_artist(circle)
+                    ax.add_artist(circle)
                 if l2 in self.lcmap:
                     circle=plt.Circle((j+0.2, i+0.25-surplus),0.2+surplus/2,color=self.lcmap[l2])
-                    plt.gcf().gca().add_artist(circle)
+                    ax.add_artist(circle)
 
             if self.label[i,j]:
                     plt.text(j, i+0.4-surplus,'$'+','.join(self.label[i,j])+'$',horizontalalignment='center',color=color,fontproperties=f,fontname=fontname,fontsize=fontsize+5+surplus*10)
