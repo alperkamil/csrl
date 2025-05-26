@@ -24,19 +24,13 @@ class OmegaAutomaton:
 
     delta : list of dicts
         A list representation of the transition function of the OA.
-        For example, `delta[q][label]` will give you the OA state that the OA makes a transition to when the symbol `label` is consumed in the OA state `q`.
-
-    epsmoves : list of lists
-        TODO: The attribute has not been implemented.
-        A list representation of epsilon-moves of the OA. 
-        For example, `epsmoves[q]` will give you the set of states the OA can nondeterministically transition to from the OA state `q` without consuming any symbol.
+        For DPAs, `delta[q][label]` is the OA state that the OA makes a transition to when the symbol `label` is consumed in the OA state `q`.
+        For LDBAs, `delta[q][label]` is the list of OA states that the OA can make a nondeterministic transition to when the symbol `label` is consumed in the OA state `q`.
 
     acc : list of dicts
-        A list representation of the acceptance condition of the OA. For DPAs, `acc[q][label]` is the color of transition triggered by consuming the symbol `label` in the OA state `q`. 
-        TODO: The following have not been implemented.
-        For LDBAs, `acc[q][label]` is `True` if the transition `q--label-->` is accepting and `None` otherwise.
-        For DRAs, `acc[q][label]` is an array such that  `acc[q][label][k]` is `False` if `q--label-->` belongs to the first set in the `k`th Rabin pair; 
-        `True` if `q--label-->` belongs to the second set in the `k`th Rabin pair; and `None` if `q--label-->` doesn't belong to either of them.
+        A list representation of the acceptance condition of the OA. 
+        For DPAs, `acc[q][label]` is the color of transition triggered by consuming the symbol `label` in the OA state `q`. 
+        For LDBAs, `acc[q][label]` is the list of Boolean values indicating if the transition is accepting.
     
     shape : tuple
         The pair of the number of colors/sets in the acceptance condition and the number of OA states; i.e., : `(n_accs, n_qs)`
@@ -62,13 +56,12 @@ class OmegaAutomaton:
         self.ltl = ltl
         self.hoa = self.ltl2hoa(ltl, oa_type)
         self.spot_oa = self.hoa2spot(self.hoa)
-        aps, labels, q0, delta, epsmoves, acc, shape = self.spot2specs(self.spot_oa)
+        aps, labels, q0, delta, acc, shape = self.spot2specs(self.spot_oa)
 
         self.aps = aps
         self.labels = labels
         self.q0 = q0
         self.delta = delta
-        self.epsmoves = epsmoves
         self.acc = acc
         self.shape = shape
 
@@ -173,8 +166,7 @@ class OmegaAutomaton:
         
         delta = [{label:[] for label in labels} for i in range(n_qs)]  # The transition function
         acc = [{label:[] for label in labels} for i in range(n_qs)]  # The transition colors
-        epsmoves = [[] for q in range(shape[1])]  # The epsilon-moves for LDBAs TODO: This has not been implemented.
-        
+       
         for e in spot_oa.edges():
             color = e.acc.max_set()-1
             cond = spot.bdd_to_formula(e.cond)  # The transition condition expressed as a formula instead of a list of labels triggering the transition
@@ -183,16 +175,15 @@ class OmegaAutomaton:
                 if spot.formula_Implies(spot_clause,cond).equivalent_to(spot.formula.tt()):  # If the transition condition satisfied with the clause corresponding to `label`
                     if spot_oa.is_deterministic():
                         delta[e.src][label] = e.dst
+                        acc[e.src][label] = color
                     else:
                         delta[e.src][label].append(e.dst)
-                    if spot_oa.acc().is_parity()[0]:
-                        acc[e.src][label] = color
-                    else:  # TODO: This has not been implemented.
                         acc[e.src][label].append(color)
+                        
+        n_accs = 2 if not spot_oa.is_deterministic() else max(sum(list(map(lambda x: list(x.values()), acc)),[]))+1
+        shape = n_accs, n_qs
         
-        shape = max(sum(list(map(lambda x: list(x.values()), acc)),[]))+1, n_qs
-        
-        output = (aps, labels, q0, delta, epsmoves, acc, shape)
+        output = (aps, labels, q0, delta, acc, shape)
         return output
 
     def _repr_html_(self):

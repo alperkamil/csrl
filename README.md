@@ -41,9 +41,9 @@ unzip owl-linux-amd64-21.0.zip
 sudo cp owl-linux-musl-amd64-21.0/bin/* /usr/local/bin/
 sudo cp owl-linux-musl-amd64-21.0/lib/* /usr/local/lib/
 
-wget http://www.lrde.epita.fr/dload/spot/spot-2.12.1.tar.gz
-tar -xzf spot-2.12.1.tar.gz
-cd spot-2.12.1
+wget http://www.lrde.epita.fr/dload/spot/spot-2.13.1.tar.gz
+tar -xzf spot-2.13.1.tar.gz
+cd spot-2.13.1
 ./configure --prefix=/usr/local --with-pythondir=$PROJECT_HOME/.venv/lib/python3.10/site-packages
 make -j8
 sudo make install
