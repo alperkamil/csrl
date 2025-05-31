@@ -10,8 +10,13 @@ from datetime import datetime
 from subprocess import check_output
 import random
 from itertools import chain, combinations
+import re
 
-import spot
+
+try:
+    import spot
+except ImportError:
+    raise ImportError('The "spot" library is required for this module. Please install it using the instructions on https://spot.lre.epita.fr/install.html.')
 
 class OmegaAutomaton:
     """
@@ -49,11 +54,16 @@ class OmegaAutomaton:
     
     """
 
-    def __init__(self, ltl, oa_type='dpa'):
-
-        self.oa_type = oa_type
-
+    def __init__(self, ltl, oa_type='dpa', save_hoa=False, save_svg=False):
+        
         self.ltl = ltl
+        self.oa_type = oa_type
+        if oa_type not in ['dpa', 'ldba']:
+            raise ValueError("Invalid OA type. Supported types are 'dpa' and 'ldba'.")
+        
+        self.save_hoa = save_hoa
+        self.save_svg = save_svg
+
         self.hoa = self.ltl2hoa(ltl, oa_type)
         self.spot_oa = self.hoa2spot(self.hoa)
         aps, labels, q0, delta, acc, shape = self.spot2specs(self.spot_oa)
@@ -105,12 +115,15 @@ class OmegaAutomaton:
         """
 
         filename = self.random_filename('hoa')
-        with open(filename,'wb') as f:
+        with open(filename, 'wb') as f:
             f.write(hoa)
         spot.setup()
         spot_oa = spot.automaton(filename)
         time.sleep(0.1)
-        os.remove(filename)
+        if not self.save_hoa:
+            os.remove(filename)
+        else:
+            print(f'HOA representation of the OA saved to {filename}')
 
         # Make the oa complete and change its acceptance condition to 'max odd' if it is a DPA
         spot_oa = spot.complete(spot_oa)
@@ -118,6 +131,12 @@ class OmegaAutomaton:
             spot_oa = spot.colorize_parity(spot.change_parity(spot_oa,spot.parity_kind_max,spot.parity_style_odd),True)
             spot.highlight_nondet_states(spot_oa, 5)
             spot.highlight_nondet_edges(spot_oa, 4)
+
+        if self.save_svg:
+            svg_filename = filename + '.svg'
+            with open(svg_filename, 'w') as f:
+                f.write(spot_oa._repr_svg_())
+            print(f'SVG representation of the OA saved to {svg_filename}')
         
         return spot_oa
 
@@ -233,10 +252,12 @@ class OmegaAutomaton:
             A random file name.
         
         """
-        time = datetime.now().strftime('_%Y_%m_%d_%H_%M_%S_%f_')
+        os.makedirs('.hoa', exist_ok=True)
+        ltl_name = re.sub('[^0-9a-zA-Z]+', '_', self.ltl) + '_'
         # Generate a nonexistent file name
-        filename = 'temp_hoa_' + socket.gethostname() + time + ('%032x.' % random.getrandbits(128)) + extension
+        time = datetime.now().strftime('_%Y_%m_%d_%H_%M_%S_%f_')
+        filename = '.hoa' + os.path.sep + ltl_name + socket.gethostname() + time + ('%032x.' % random.getrandbits(128)) + extension
         while os.path.isfile(filename):
             time = datetime.now().strftime('_%Y_%m_%d_%H_%M_%S_%f_')
-            filename = 'temp_hoa_' + socket.gethostname() + time + ('%032x.' % random.getrandbits(128)) + extension
+            filename = '.hoa' + os.path.sep + ltl_name + socket.gethostname() + time + ('%032x.' % random.getrandbits(128)) + extension
         return filename
