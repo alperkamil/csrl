@@ -192,14 +192,14 @@ class OmegaAutomaton:
             for label in labels:
                 spot_clause = spot_clause_map[label]
                 if spot.formula_Implies(spot_clause,cond).equivalent_to(spot.formula.tt()):  # If the transition condition satisfied with the clause corresponding to `label`
-                    if spot_oa.is_deterministic():
+                    if self.oa_type=='dpa':
                         delta[e.src][label] = e.dst
                         acc[e.src][label] = color
                     else:
                         delta[e.src][label].append(e.dst)
-                        acc[e.src][label].append(color)
+                        acc[e.src][label].append((color%2)==1)
                         
-        n_accs = 2 if not spot_oa.is_deterministic() else max(sum(list(map(lambda x: list(x.values()), acc)),[]))+1
+        n_accs = 2 if not self.oa_type=='dpa' else max(sum(list(map(lambda x: list(x.values()), acc)),[]))+1
         shape = n_accs, n_qs
         
         output = (aps, labels, q0, delta, acc, shape)

@@ -1,9 +1,18 @@
 
 from ..oa import OmegaAutomaton, spot
+from collections import Counter
+from random import choice
 
+R = 2000
 ltl_dict = {
     'Safe Aborbing States': {
         'ltl': r'(FGa | FGb) & G!c',
+        'paths': [
+            (True, [('b',), ('a',), ('a', 'b'), (), *[('a',) for _ in range(R)]]),
+            (True, [('b',), ('a',), ('a', 'b'), (), *[('b',) for _ in range(R)]]),
+            (False, [('b',), ('a',), ('a', 'b'), ('c',), *[('a',) for _ in range(R)]]),
+            (False, [('b',), ('a',), ('a', 'b'), ('c',), *[('b',) for _ in range(R)]]),
+        ],
     },
     'Nursery': {
         'ltl': r'G(!d & ((b & X!b) -> X(!b U (a | c))) & ((!b & Xb & XX!b) -> (!a U b)) & (c -> (!a U b)) & ((b & X b)->Fa))',
@@ -35,13 +44,20 @@ ltl_dict = {
     'Reaching Goals II': {
         'ltl': r'FG("red" & !"boundary") | F("red" & "green") | F("red" & "blue") | GF("green" & "blue" & !"red")',
     },
+    'Cart Pole': {
+        'ltl': r'G("position_x>-10" & "position_x<10") & G("velocity_x>-10.0" & "velocity_x<10.0") & F("cos_theta<-0.5" & F"cos_theta>0.5")'
+    },
+    'Cheetah': {
+        'ltl': r'G"tip_height>-7.5" & GF"tip_height>-7.0" & F("tip_velocity_x>3.0" & F"tip_velocity_x<0")'
+    },
 }
+
 
 def test_oa_construction():
     for name, info in ltl_dict.items():
         for oa_type in ['dpa', 'ldba']:
             ltl = info['ltl']
-            oa = OmegaAutomaton(ltl)
+            oa = OmegaAutomaton(ltl, oa_type)
             
             # Check if the automaton has been created
             assert hasattr(oa, 'ltl')
@@ -80,4 +96,53 @@ def test_oa_construction():
             oa = OmegaAutomaton(ltl, save_hoa=False, save_svg=True)
             oa = OmegaAutomaton(ltl, save_hoa=True, save_svg=False)
             oa = OmegaAutomaton(ltl, save_hoa=True, save_svg=True)
+
+
+
+def test_oa_acceptance():
+    for name, info in ltl_dict.items():
+        ltl = info['ltl']
+        for accepting, path in info.get('paths', []):
+            dpa = OmegaAutomaton(ltl, 'dpa')
+            visited_colors = []
+            q = dpa.q0
+            for label in path:
+                visited_colors.append(dpa.acc[q][label])
+                q = dpa.delta[q][label]
+            
+            visited_colors_suffix = visited_colors[len(path)//2:]
+            counts = Counter(visited_colors_suffix)
+
+            repeated_colors = []
+            for color in counts:
+                if counts[color] >= len(path) / (dpa.shape[1]**2):
+                    repeated_colors.append(color)
+
+            accepts = max(repeated_colors)%2==1
+            assert accepting==accepts
+
+
+            ldba = OmegaAutomaton(ltl, 'ldba')
+            accepts = False
+            for i in range(100):
+                visited_colors = []
+                q = ldba.q0
+                for label in path:
+                    color, q = choice(list(zip(ldba.acc[q][label], ldba.delta[q][label])))
+                    visited_colors.append(color)
+
+                visited_colors_suffix = visited_colors[len(path)//2:]
+                counts = Counter(visited_colors_suffix)
+
+                repeated_colors = []
+                for color in counts:
+                    if counts[color] >= len(path) / (dpa.shape[1]**2):
+                        repeated_colors.append(color)
+
+                accepts = accepts or (max(repeated_colors)%2==1)
+            assert accepting==accepts
+
+
+
+
 
