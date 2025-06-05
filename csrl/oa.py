@@ -54,18 +54,37 @@ class OmegaAutomaton:
     
     """
 
-    def __init__(self, ltl, oa_type='dpa', save_hoa=False, save_svg=False):
-        
-        self.ltl = ltl
-        self.oa_type = oa_type
-        if oa_type not in ['dpa', 'ldba']:
-            raise ValueError("Invalid OA type. Supported types are 'dpa' and 'ldba'.")
-        
-        self.save_hoa = save_hoa
-        self.save_svg = save_svg
+    def __init__(self, ltl=None, oa_type='dpa', hoa_path=None, keep_hoa=False, save_svg=False):
 
-        self.hoa = self.ltl2hoa(ltl, oa_type)
-        self.spot_oa = self.hoa2spot(self.hoa)
+        if ltl is None and hoa_path is None:
+            raise ValueError('Either "ltl" or "hoa_path" must be provided to construct an OmegaAutomaton.')
+        
+        if hoa_path is None and oa_type not in ['dpa', 'ldba']:
+            raise ValueError('Invalid OA type. Supported types are "dpa" and "ldba".')
+        
+
+        if hoa_path:
+            with open(hoa_path, 'rb') as f:
+                self.hoa = f.read()
+            hoa_args = self.hoa.decode('utf-8').splitlines()[3].split('"')
+            self.ltl = hoa_args[5].replace("'", '"')
+            self.oa_type = hoa_args[1][4:]
+
+        else:
+            self.hoa = self.ltl2hoa(ltl, oa_type)
+            hoa_path = self.random_hoa_path(ltl, oa_type)
+            with open(hoa_path, 'wb') as f:
+                f.write(self.hoa)
+            self.ltl = ltl
+            self.oa_type = oa_type
+
+
+        self.hoa_path = hoa_path
+
+        self.spot_oa = self.hoa2spot(hoa_path, save_svg)
+        if hoa_path is None and not keep_hoa:
+            os.remove(hoa_path)
+        
         aps, labels, q0, delta, acc, shape = self.spot2specs(self.spot_oa)
 
         self.aps = aps
@@ -74,6 +93,7 @@ class OmegaAutomaton:
         self.delta = delta
         self.acc = acc
         self.shape = shape
+
 
     def ltl2hoa(self, ltl, oa_type):
         """
@@ -98,7 +118,7 @@ class OmegaAutomaton:
         hoa = check_output(['owl',tool,'-f',ltl,'-t','SMALLEST_AUTOMATON', '--complete'])
         return hoa
 
-    def hoa2spot(self, hoa):
+    def hoa2spot(self, hoa_path, save_svg=False):
         """
         Constructs a spot omega automaton from the given OA description in the HOA format.
         
@@ -113,17 +133,8 @@ class OmegaAutomaton:
             The `spot.twa_graph` object constructed from the HOA representation of the OA.
         
         """
-
-        filename = self.random_filename('hoa')
-        with open(filename, 'wb') as f:
-            f.write(hoa)
         spot.setup()
-        spot_oa = spot.automaton(filename)
-        time.sleep(0.1)
-        if not self.save_hoa:
-            os.remove(filename)
-        else:
-            print(f'HOA representation of the OA saved to {filename}')
+        spot_oa = spot.automaton(hoa_path)
 
         # Make the oa complete and change its acceptance condition to 'max odd' if it is a DPA
         spot_oa = spot.complete(spot_oa)
@@ -132,11 +143,11 @@ class OmegaAutomaton:
             spot.highlight_nondet_states(spot_oa, 5)
             spot.highlight_nondet_edges(spot_oa, 4)
 
-        if self.save_svg:
-            svg_filename = filename + '.svg'
-            with open(svg_filename, 'w') as f:
+        if save_svg:
+            svg_path= hoa_path + '.svg'
+            with open(svg_path, 'w') as f:
                 f.write(spot_oa._repr_svg_())
-            print(f'SVG representation of the OA saved to {svg_filename}')
+            print(f'SVG representation of the OA saved to {svg_path}')
         
         return spot_oa
 
@@ -168,7 +179,7 @@ class OmegaAutomaton:
         
         # Get the list of all possible labels
         # A label is a set of atomic propositions
-        labels = self.powerset(aps)
+        labels = list(chain.from_iterable(combinations(aps, k) for k in range(len(aps)+1)))  # The power set of `aps`
         spot_clause_map = {}  # The mapping from each label to the corresponding `spot.formula` clause
         for label in labels:
             # Create the list of spot.formula literals for `label`
@@ -192,14 +203,14 @@ class OmegaAutomaton:
             for label in labels:
                 spot_clause = spot_clause_map[label]
                 if spot.formula_Implies(spot_clause,cond).equivalent_to(spot.formula.tt()):  # If the transition condition satisfied with the clause corresponding to `label`
-                    if self.oa_type=='dpa':
+                    if spot_oa.is_deterministic():
                         delta[e.src][label] = e.dst
                         acc[e.src][label] = color
                     else:
                         delta[e.src][label].append(e.dst)
                         acc[e.src][label].append((color%2)==1)
                         
-        n_accs = 2 if not self.oa_type=='dpa' else max(sum(list(map(lambda x: list(x.values()), acc)),[]))+1
+        n_accs = 2 if not spot_oa.is_deterministic() else max(sum(list(map(lambda x: list(x.values()), acc)),[]))+1
         shape = n_accs, n_qs
         
         output = (aps, labels, q0, delta, acc, shape)
@@ -218,26 +229,8 @@ class OmegaAutomaton:
 
         return self.spot_oa._repr_html_()
 
-    def powerset(self, a):
-        """
-        Returns the power set of the given list.
-
-        Parameters
-        ----------
-        a: list
-            The input list.
-
-        Returns
-        -------
-        powerset: list
-            The power set of the list.
-        
-        """
-
-        powerset = list(chain.from_iterable(combinations(a, k) for k in range(len(a)+1)))
-        return powerset
     
-    def random_filename(self, extension):
+    def random_hoa_path(self, ltl, oa_type):
         """
         Returns a random file name with the given extension.
 
@@ -253,11 +246,11 @@ class OmegaAutomaton:
         
         """
         os.makedirs('.hoa', exist_ok=True)
-        ltl_name = re.sub('[^0-9a-zA-Z]+', '_', self.ltl) + '_'
+        name = oa_type + '_' + re.sub('[^0-9a-zA-Z]+', '_', ltl) + '_'
         # Generate a nonexistent file name
         time = datetime.now().strftime('_%Y_%m_%d_%H_%M_%S_%f_')
-        filename = '.hoa' + os.path.sep + ltl_name + socket.gethostname() + time + ('%032x.' % random.getrandbits(128)) + extension
+        filename = '.hoa' + os.path.sep + name + socket.gethostname() + time + ('%032x' % random.getrandbits(128)) + '.hoa'
         while os.path.isfile(filename):
             time = datetime.now().strftime('_%Y_%m_%d_%H_%M_%S_%f_')
-            filename = '.hoa' + os.path.sep + ltl_name + socket.gethostname() + time + ('%032x.' % random.getrandbits(128)) + extension
+            filename = '.hoa' + os.path.sep + name + socket.gethostname() + time + ('%032x' % random.getrandbits(128)) + '.hoa'
         return filename

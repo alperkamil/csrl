@@ -10,14 +10,14 @@ This repository includes implementations of several learning-based synthesis alg
 
 ## Example Installation on Ubuntu 22.04 with Root Access
 
-## CSRL
+### CSRL
 ```sh
 git clone https://github.com/alperkamil/csrl.git
 export PROJECT_HOME=$PWD/csrl
 cd $PROJECT_HOME
 ```
 
-## Tools
+### Tools
 ```sh
 sudo apt install zip git build-essential python3-dev python3-venv
 ```

@@ -54,52 +54,78 @@ ltl_dict = {
 
 
 def test_oa_construction():
+    """
+    Test the construction of OmegaAutomaton objects from LTL formulas and HOA files.
+    This function iterates over a predefined dictionary of LTL formulas and their properties,
+    creates OmegaAutomaton objects for both DPA and LDBA types, and checks the attributes of the created objects.
+    It also tests the saving of HOA and SVG representations of the automata.
+    """
+
     for name, info in ltl_dict.items():
         for oa_type in ['dpa', 'ldba']:
-            ltl = info['ltl']
-            oa = OmegaAutomaton(ltl, oa_type)
-            
-            # Check if the automaton has been created
-            assert hasattr(oa, 'ltl')
-            assert hasattr(oa, 'hoa') 
-            assert hasattr(oa, 'spot_oa')
-            assert hasattr(oa, 'aps')
-            assert hasattr(oa, 'labels')
-            assert hasattr(oa, 'q0') 
-            assert hasattr(oa, 'delta') 
-            assert hasattr(oa, 'acc')
-            assert hasattr(oa, 'shape')
+            for construction_type in ['ltl', 'hoa']:
+                for keep_hoa in [False, True]:
+                    for save_svg in [False, True]:
+                        if construction_type == 'ltl':
+                            ltl = info['ltl']
+                            oa = OmegaAutomaton(ltl, oa_type, keep_hoa=keep_hoa, save_svg=save_svg)
 
-            assert isinstance(oa.ltl, str) and oa.ltl == ltl
-            assert isinstance(oa.hoa, bytes)
-            assert isinstance(oa.spot_oa, spot.twa_graph)
-            assert isinstance(oa.aps, list)
-            assert isinstance(oa.labels, list)
-            assert isinstance(oa.q0, int)
-            assert isinstance(oa.delta, list)
-            assert isinstance(oa.acc, list)
-            assert isinstance(oa.shape, tuple)
+                        elif construction_type == 'hoa':
+                            # Create the OmegaAutomaton from HOA file
+                            hoa_path = oa.hoa_path
+                            oa = OmegaAutomaton(hoa_path=hoa_path, keep_hoa=keep_hoa, save_svg=save_svg)
 
-            oa.q0 is not None
-            assert len(oa.delta) > 0
-            assert len(oa.acc) > 0
-            
-            # Check if the acceptance condition is well-formed
-            assert isinstance(oa.acc, list)
-            for acc in oa.acc:
-                assert isinstance(acc, dict)
-            
-            # Check if the shape is correctly defined
-            assert isinstance(oa.shape, tuple)
-            assert len(oa.shape) == 2
+                    
+                        # Check if the automaton has been created
+                        assert hasattr(oa, 'ltl')
+                        assert hasattr(oa, 'oa_type')
+                        assert hasattr(oa, 'hoa') 
+                        assert hasattr(oa, 'spot_oa')
+                        assert hasattr(oa, 'aps')
+                        assert hasattr(oa, 'labels')
+                        assert hasattr(oa, 'q0') 
+                        assert hasattr(oa, 'delta') 
+                        assert hasattr(oa, 'acc')
+                        assert hasattr(oa, 'shape')
 
-            oa = OmegaAutomaton(ltl, save_hoa=False, save_svg=True)
-            oa = OmegaAutomaton(ltl, save_hoa=True, save_svg=False)
-            oa = OmegaAutomaton(ltl, save_hoa=True, save_svg=True)
+                        # Check if the attributes are of the expected types
+                        assert isinstance(oa.ltl, str) and oa.ltl == ltl
+                        assert isinstance(oa.oa_type, str) and oa.oa_type == oa_type
+                        assert isinstance(oa.hoa, bytes)
+                        assert isinstance(oa.spot_oa, spot.twa_graph)
+                        assert isinstance(oa.aps, list)
+                        assert isinstance(oa.labels, list)
+                        assert isinstance(oa.q0, int)
+                        assert isinstance(oa.delta, list)
+                        assert isinstance(oa.acc, list)
+                        assert isinstance(oa.shape, tuple)
+
+                        oa.q0 is not None
+                        assert len(oa.delta) > 0
+                        assert len(oa.acc) > 0
+                        
+                        # Check if the acceptance condition is well-formed
+                        assert isinstance(oa.acc, list)
+                        for acc in oa.acc:
+                            assert isinstance(acc, dict)
+                        
+                        # Check if the shape is correctly defined
+                        assert isinstance(oa.shape, tuple)
+                        assert len(oa.shape) == 2
+
+
 
 
 
 def test_oa_acceptance():
+    """
+    Test the acceptance of paths in OmegaAutomaton objects constructed from LTL formulas.
+    This function iterates over a predefined dictionary of LTL formulas and their properties,
+    creates OmegaAutomaton objects for both DPA and LDBA types, and checks if the acceptance conditions
+    are satisfied for given paths.
+    It uses the `Counter` class to count the occurrences of colors in the visited paths
+    and verifies if the acceptance conditions hold true based on the defined LTL properties.
+    """
     for name, info in ltl_dict.items():
         ltl = info['ltl']
         for accepting, path in info.get('paths', []):
