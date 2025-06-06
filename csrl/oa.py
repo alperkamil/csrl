@@ -24,6 +24,28 @@ class OmegaAutomaton:
 
     Attributes
     ----------
+    ltl : str
+        The linear temporal logic (LTL) formula used to construct the OA.
+
+    oa_type : str
+        The type of the OA to be constructed. It can be either `'dpa'` (deterministic parity automaton) or `'ldba'` (limit-deterministic Büchi automaton).
+        The default value is `'dpa'`.
+
+    self.hoa : bytes
+        The HOA representation of the OA constructed from the LTL formula or read from the HOA file.
+
+    hoa_path : str
+        The path to the HOA file containing the OA description. If the OA is constructed from an LTL formula, this is the path to the generated HOA file.
+
+    spot_oa : spot.twa_graph
+        The `spot.twa_graph` object constructed from the HOA representation of the OA.
+
+    aps : list of str
+        The atomic propositions of the OA. These are the basic building blocks of the LTL formula.
+
+    labels : list of str
+        The labels of the OA. A label is a set of atomic propositions, and the labels are the power set of the atomic propositions.
+        
     q0 : int
         The initial state of the OA.
 
@@ -40,9 +62,6 @@ class OmegaAutomaton:
     shape : tuple
         The pair of the number of colors/sets in the acceptance condition and the number of OA states; i.e., : `(n_accs, n_qs)`
 
-    svg : str
-        The string of the SVG representation of the OA within div tags.
-
 
     Parameters
     ----------
@@ -51,6 +70,16 @@ class OmegaAutomaton:
 
     oa_type: str, optional
         The type of the OA to be constructed. The default value is `'dpa'`.
+
+    hoa_path: str, optional
+        The path to the HOA file containing the OA description. If provided, the `ltl` parameter is ignored.
+
+    keep_hoa: bool, optional
+        If `True`, the HOA file will be kept after constructing the OA. The default value is `False`. Ignored if `hoa_path` is provided.
+
+    save_svg: bool, optional
+        If `True`, the SVG representation of the OA will be saved to a file. The default value is `False`.
+        The SVG file will be saved in the same directory as the HOA file with the same name but with a `.svg` extension.
     
     """
 
@@ -124,8 +153,12 @@ class OmegaAutomaton:
         
         Parameters
         ----------
-        hoa: str
-            The HOA representation of the OA.
+        hoa_path: str
+            The path to the HOA file containing the OA description.
+
+        save_svg: bool, optional
+            If `True`, the SVG representation of the OA will be saved to a file. The default value is `False`.
+            The SVG file will be saved in the same directory as the HOA file with the same name but with a `.svg` extension.
         
         Returns
         -------
@@ -163,10 +196,22 @@ class OmegaAutomaton:
         
         Returns
         -------
-        output: tuple
-            A tuple containing the initial OA state `q0`; a list representations of the OA transition function `delta`;
-            a list representation of the epsilon-moves `epsmoves`; a list representation of the OA acceptance condition `acc`;
-            and the shape of the OA `shape=(n_accs, n_qs)`, the number of colors/pairs in the acceptance condition; i.e., `(q0, delta, epsmoves, acc, shape)`.
+        aps: list of str
+            The list of atomic propositions of the OA.
+        labels: list of str
+            The list of labels of the OA. A label is a set of atomic propositions, and the labels are the power set of the atomic propositions.
+        q0: int
+            The initial state of the OA.
+        delta: list of dicts
+            A list representation of the transition function of the OA.
+            For DPAs, `delta[q][label]` is the OA state that the OA makes a transition to when the symbol `label` is consumed in the OA state `q`.
+            For LDBAs, `delta[q][label]` is the list of OA states that the OA can make a nondeterministic transition to when the symbol `label` is consumed in the OA state `q`.
+        acc: list of dicts
+            A list representation of the acceptance condition of the OA.
+            For DPAs, `acc[q][label]` is the color of transition triggered by consuming the symbol `label` in the OA state `q`.
+            For LDBAs, `acc[q][label]` is the list of Boolean values indicating if the transition is accepting.
+        shape: tuple
+            The pair of the number of colors/sets in the acceptance condition and the number of OA states; i.e., : `(n_accs, n_qs)`
 
         """
 
@@ -222,7 +267,7 @@ class OmegaAutomaton:
 
         Returns
         -------
-        self.svg: str
+        svg: str
             The string of the SVG representation of the OA within div tags.
         
         """
@@ -236,13 +281,16 @@ class OmegaAutomaton:
 
         Parameters
         ----------
-        extension: str  
-            The extension of the file name to be generated.
+        ltl: str
+            The linear temporal logic (LTL) formula used to construct the OA.
+        
+        oa_type: str
+            The type of the OA to be constructed.
 
         Returns
         -------
-        filename: str
-            A random file name.
+        hao_path: str
+            A random HAO file path.
         
         """
         os.makedirs('.hoa', exist_ok=True)
