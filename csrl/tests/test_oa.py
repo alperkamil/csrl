@@ -50,6 +50,12 @@ ltl_dict = {
     'Cheetah': {
         'ltl': r'G"tip_height>-7.5" & GF"tip_height>-7.0" & F("tip_velocity_x>3.0" & F"tip_velocity_x<0")'
     },
+    'Cheetah Repetition': {
+        'ltl': r'GF"x_position>2" & GF"x_position<-2"'
+    },
+    'Cheetah Sequencing': {
+        'ltl': r'F("x_position>2" & XF("x_position>4" & XF("x_position>6" & XF("x_position>8" & XF"x_position>10"))))'
+    }
 }
 
 
