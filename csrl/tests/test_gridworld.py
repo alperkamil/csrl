@@ -270,3 +270,35 @@ def test_gridworld_construction():
 
     gw = GridWorld(shape=shape, structure=structure, labels=labels, rewards=rewards, lcmap=lcmap, figsize=6)
     gw.plot()
+
+
+def test_gridworld_transitions():
+
+    shape = (4,4)
+    # E: Empty, T: Trap, B: Obstacle
+    structure = np.array([
+        ['E',  'E',  'E',  'E'],
+        ['E',  'E',  'E',  'E'],
+        ['E',  'E',  'E',  'E'],
+        ['E',  'E',  'E',  'E']
+    ])
+
+    # Labels of the states
+    labels = np.array([
+        [(),    (),    (),    ()],
+        [(),    (),    (),    ()],
+        [(),    (),    (),    ()],
+        [(),    (),    (),    ()]
+    ], dtype=object)
+
+    # Use figsize=4 for smaller figures
+    gw = GridWorld(shape=shape, structure=structure, labels=labels, figsize=5)
+    
+    dsts, probs = gw.get_transition_probs((0, 0), 'U')
+    assert dsts[0]==(0,0)  # 'U'
+    assert dsts[1]==(0,1)  # 'R'
+    assert dsts[2]==(0,0)  # 'L'
+    np.testing.assert_almost_equal(probs[0], 0.8)  # 'U'
+    np.testing.assert_almost_equal(probs[1], 0.1)  # 'R'
+    np.testing.assert_almost_equal(probs[2], 0.1)  # 'L'
+

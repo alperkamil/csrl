@@ -59,7 +59,7 @@ class GridWorld():
 
     Other Attributes
     ----------
-    action_names : list
+    action_dirs : list
         The list of available actions: `['U', 'D', 'R', 'L']`.
 
 
@@ -67,7 +67,7 @@ class GridWorld():
 
     def __init__(self, shape, structure=None, rewards=None, labels=None, prob_intended=0.8, figsize=6, lcmap={}, cmap=plt.cm.RdBu):
 
-        self.action_names = ['U', 'D', 'R', 'L']  # The action list for "Up, Down, Right, Left"
+        self.action_dirs = ['U', 'D', 'R', 'L']  # The action list for "Up, Down, Right, Left"
 
         n_rows, n_cols = self.shape = shape
 
@@ -119,11 +119,11 @@ class GridWorld():
         cell = np.random.randint(n_rows),np.random.randint(n_cols)
         return cell
 
-    def get_transition_probs(self, cell, action_name, attack_name=None, attack_type=None):
+    def get_transition_probs(self, cell, action_dir, attack_type=None, attack_dir=None):
         """
-        Returns the list of possible destionation cells with their probabilities `(dst_cells, probs)` when the action with the name `action_name` is taken in the cell at the coordinates specified by `cell`.
+        Returns the list of possible destionation cells with their probabilities `(dst_cells, probs)` when the action with the name `action_dir` is taken in the cell at the coordinates specified by `cell`.
         The agent moves in the intented direction with a probability of `self.prob_intended`, and moves sideways with a probability of `(1-self.prob_intended)/2`.
-        If exists, the adversarial action with the name `attack_name` can further manipulate the movement:
+        If exists, the adversarial action with the name `attack_dir` can further manipulate the movement:
         if the the adversarial action is in the opposite direction to the agent's action, the agent moves as described above (default); 
         if the the adversarial action is in the same direction, the agent moves in the intended direction with a probability of 1;
         if the the adversarial action is perpendicular to the agent's action, the agent moves in the intended direction with a probability of `self.prob_intended`, 
@@ -137,10 +137,10 @@ class GridWorld():
         cell : tuple
             The coordinate of the cell `(i,j)`,
 
-        action_name: str
+        action_dir: str
             The name of the action.
 
-        attack_name: str, optional
+        attack_dir: str, optional
             The name of the attack. The default value is `None`.
 
         Returns
@@ -149,59 +149,73 @@ class GridWorld():
             The list of possible destionation cells and their probabilities.
 
         """
+        if action_dir not in self.action_dirs:
+            raise ValueError(f"Invalid action direction: {action_dir}. Expected one of {self.action_dirs}.")
 
-        directions = self.action_names  # Same as the actions: `['U', 'D', 'L', 'R']`
-
-        # Get the default transition probabilities for each direction (without considering obstacles/walls/traps)
-        probs = []  # The transition probabilities
-        for direction in directions:
-            if direction == action_name:  # The intended direction
-                probs.append(self.prob_intended)
-            elif self.perpendicular(direction,action_name):  # The directions perpendicular to the intended direction
-                probs.append((1-self.prob_intended)/2)
-            else:
-                probs.append(0)
+        if attack_type not in [None, 'noise', 'override']:
+            raise ValueError(f"Invalid attack type: {attack_type}. Expected one of [None, 'noise', 'override'].")
         
-        # If there is an adversarial action, update the probabilities accordingly
-        if attack_name:
-            # If the adversarial action is in the opposite direction to the agent's action, the transition probabilities stay the same.
-            if self.opposite(action_name, attack_name):
-                pass
-            # If the both actions are in the same direction, then the agent surely moves in the intended direction.
-            elif action_name == attack_name:
-                probs = []  # Reset the default transition probabilities
-                for direction in directions:
-                    if direction == action_name:  # The intended direction
-                        probs.append(1)
-                    else:
-                        probs.append(0)
-            # If the the actions are perpendicular to each other,
+        n_rows, n_cols = self.shape
+        if cell[0] < 0 or cell[0] >= n_rows:  # The row boundaries
+            raise ValueError(f"Cell row {cell} is out of bounds for the grid of shape {self.shape}.")
+        elif cell[1] < 0 or cell[1] >= n_cols:  # The column boundaries
+            raise ValueError(f"Cell column {cell} is out of bounds for the grid of shape {self.shape}.")
+       
+
+        if attack_type is None:  # No attack
+            return self.get_transition_probs_without_attack(cell, action_dir)
+
+        else: # If there is an actuation attack
+            if attack_dir not in self.action_dirs:
+                raise ValueError(f"Invalid attack direction: {attack_dir}. Expected one of {self.action_dirs}.")
+
+            # If the attack direction is the same as the agent's action direction (reinforcement attack)
+            if action_dir == attack_dir:
+                # The agent moves in the intended direction with a probability of 1
+                dst = self.move(cell, action_dir)
+                return [dst] * 3, [1, 0, 0] 
+
+            # If the attack direction is in the opposite direction to the agent's action (noise attack)
+            elif self.opposite(action_dir, attack_dir):
+                # Noisy transitions as if there is no attack
+                return self.get_transition_probs_without_attack(cell, action_dir)
+            
+            # If the attack direction is perpendicular to the agent's action (side attack)
             # then the agent moves in the intended direction with a probability of `self.prob_intended`,
-            # and moves in the direction of the adversarial action with a probability of `1-self.prob_intended`.
-            elif self.perpendicular(action_name,attack_name):
+            # and moves in the attack direction with a probability of `1-self.prob_intended`.
+            else:  # elif self.perpendicular(action_dir,attack_dir):
                 probs = []  # Reset the default transition probabilities
-                for direction in directions:
-                    if direction == action_name:  # The intended direction
-                        probs.append(self.prob_intended)
-                    elif direction == attack_name:  # The direction of the adversarial action
-                        probs.append(1-self.prob_intended)
-                    else:
-                        probs.append(0)
-        
-        # Get the destination cells for each direction and update the probabilities accordingly if the agent cannot move
-        dst_cells = []  # The destination cells
-        for direction, prob in zip(directions, probs):
-            dst = self.move(cell,direction)
-            # If the agent cannot move due to being in a trap cell or trying to move towards an obstacle or a wall,
-            # the associated probabilities should be assigned to the cell the agent is in.
-            if dst is not None and prob > 0:  # If the agent can move
-                dst_cells.append(dst)
-            else:  # If the agent cannot move
-                dst_cells.append(cell)
+                dst_action = self.move(cell, action_dir)  # The destination cell in the action direction
+                dst_attack = self.move(cell, attack_dir)  # The destination cell in the attack direction
+                dsts = [dst_action, dst_attack, cell]  # The cell is a placeholder
+                probs = [self.prob_intended, 1-self.prob_intended, 0]
+                return dsts, probs
 
-        output = (dst_cells, probs)
-        return output
+        # Should not reach here
+
     
+    def get_transition_probs_without_attack(self, cell, action_dir):
+        """
+        Returns the list of possible destionation cells with their probabilities `(dst_cells, probs)` when the action with the name `action_dir` is taken in the cell at the coordinates specified by `cell`.
+        The agent moves in the intented direction with a probability of `self.prob_intended`, and moves sideways with a probability of `(1-self.prob_intended)/2`."""
+        
+        # Get the destination cells and their corresponding transition probabilities for each direction
+        dsts, probs = [], []  # The destination cells and transition probabilities
+        for direction in self.action_dirs:  # `['U', 'D', 'L', 'R']`
+            if direction == action_dir:  # The intended direction
+                dsts.append(self.move(cell, direction))
+                probs.append(self.prob_intended)
+
+            elif self.perpendicular(direction, action_dir):  # The directions perpendicular to the intended direction
+                dsts.append(self.move(cell, direction))
+                probs.append((1-self.prob_intended)/2)
+            
+            # else / elif self.opposite(action_dir, attack_dir):
+                # Opposite direction; cannot move; ignore
+
+        return dsts, probs
+    
+
     def opposite(self, first_direction, second_direction):
         """
         Returns `True` if `first_direction` is in the opposite direction to `second_direction`, and `False` otherwise.
@@ -284,7 +298,7 @@ class GridWorld():
         Returns
         -------
         dst: tuple or None
-            The destination cell if the agent can move, `None` otherwise.
+            The destination cell
         
         """
 
@@ -292,39 +306,41 @@ class GridWorld():
 
         # Check if `src` is within the boundaries
         if src[0] < 0 or src[0] >= n_rows:  # The row boundaries
-            return
+            raise ValueError(f"Source cell row {src} is out of bounds for the grid of shape {self.shape}.")
         elif src[1] < 0 or src[1] >= n_cols:  # The column boundaries
-            return
+            raise ValueError(f"Source cell column {src} is out of bounds for the grid of shape {self.shape}.")
         
         # Check if `src` is a trap cell or occupied by an obstacle
         src_type = self.structure[src]
         if src_type in ['B', 'T']:
-            return
+            return src
         
         # Get the neighbor cell in the direction
         if direction=='U':
             dst = (src[0]-1, src[1])
         elif direction=='D':
             dst = (src[0]+1, src[1])
-        elif direction=='L':
-            dst = (src[0], src[1]-1)
         elif direction=='R':
             dst = (src[0], src[1]+1)
+        elif direction=='L':
+            dst = (src[0], src[1]-1)
+        else:
+            raise ValueError(f"Invalid direction: {direction}. Expected one of {self.action_dirs}.")
 
         # Check if `dst` is within the boundaries
         if dst[0] < 0 or dst[0] >= n_rows:  # The row boundaries
-            return
+            return src
         elif dst[1] < 0 or dst[1] >= n_cols:  # The column boundaries
-            return
+            return src
 
         # Check if `dst` is occupied by an obstacle
         dst_type = self.structure[dst]
         if dst_type == 'B':
-            return
+            return src
         
         # Check if the direction is blocked
-        if self.opposite(direction,src_type):
-            return
+        if self.opposite(direction, src_type):
+            return src
             
         return dst
 
@@ -370,7 +386,7 @@ class GridWorld():
         """
 
         # Set up the font
-        f=FontProperties(weight='bold')
+        f = FontProperties(weight='bold')
         fontname = 'Times New Roman'
         fontsize = 20
 
@@ -481,38 +497,38 @@ class GridWorld():
 
             # Draw the arrows to visualize the policy
             elif values[i,j] > 0 or values is self.rewards:  # Do not draw the arrows if the value is zero
-                if policy[i,j] >= len(self.action_names):  # Display the epsilon-actions
-                    plt.text(j, i-0.05,r'$\varepsilon_'+str(policy[i,j]-len(self.action_names)+1)+'$', horizontalalignment='center',color=color,fontsize=fontsize+5)
+                if policy[i,j] >= len(self.action_dirs):  # Display the epsilon-actions
+                    plt.text(j, i-0.05,r'$\varepsilon_'+str(policy[i,j]-len(self.action_dirs)+1)+'$', horizontalalignment='center',color=color,fontsize=fontsize+5)
                 else:
-                    action_name = self.action_names[policy[i,j]]
+                    action_dir = self.action_dirs[policy[i,j]]
                     pos = j,i  # row,col => y,x
-                    if action_name == 'U':
+                    if action_dir == 'U':
                         plt.arrow(j,i,0,-0.2,head_width=.2,head_length=.15,color=intended_arrow_color)
-                    elif action_name == 'D':
+                    elif action_dir == 'D':
                         pos = j,i-.3
                         plt.arrow(j,i-.3,0,0.2,head_width=.2,head_length=.15,color=intended_arrow_color)
-                    elif action_name == 'L':
+                    elif action_dir == 'L':
                         pos = j+.15,i-0.15
                         plt.arrow(j+.15,i-0.15,-0.2,0,head_width=.2,head_length=.15,color=intended_arrow_color)
-                    elif action_name == 'R':
+                    elif action_dir == 'R':
                         pos = j-.15,i-0.15
                         plt.arrow(j-.15,i-0.15,0.2,0,head_width=.2,head_length=.15,color=intended_arrow_color)
                     
                     if adversarial_policy is not None:
-                        attack_name = self.action_names[adversarial_policy[i,j]]
+                        attack_dir = self.action_dirs[adversarial_policy[i,j]]
                         # Draw the adversarial action if the it is perpendicular to or overrides the agent's action 
-                        if self.perpendicular(action_name,attack_name) or (adversarial_override and action_name!=attack_name):
-                            if attack_name == 'U':
+                        if self.perpendicular(action_dir,attack_dir) or (adversarial_override and action_dir!=attack_dir):
+                            if attack_dir == 'U':
                                 plt.arrow(pos[0],pos[1],0,-0.1,head_width=.13,head_length=.07,color=unintended_arrow_color)
-                            elif attack_name == 'D':
+                            elif attack_dir == 'D':
                                 plt.arrow(pos[0],pos[1],0,0.1,head_width=.13,head_length=.07,color=unintended_arrow_color)
-                            elif attack_name == 'R':
+                            elif attack_dir == 'R':
                                 plt.arrow(pos[0],pos[1],0.1,0,head_width=.13,head_length=.07,color=unintended_arrow_color)
-                            elif attack_name == 'L':
+                            elif attack_dir == 'L':
                                 plt.arrow(pos[0],pos[1],-0.1,0,head_width=.13,head_length=.07,color=unintended_arrow_color)
                         # Draw two arrows to represent that the agent can move sideways
-                        elif self.opposite(action_name,attack_name):
-                            if attack_name in ['U','D']:
+                        elif self.opposite(action_dir,attack_dir):
+                            if attack_dir in ['U','D']:
                                 plt.arrow(pos[0],pos[1],0.1,0,head_width=.13,head_length=.07,color=unintended_arrow_color)
                                 plt.arrow(pos[0],pos[1],-0.1,0,head_width=.13,head_length=.07,color=unintended_arrow_color)
                             else:
