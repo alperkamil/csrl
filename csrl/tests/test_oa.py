@@ -3,7 +3,7 @@ from ..oa import OmegaAutomaton, spot
 from collections import Counter
 from random import choice
 
-R = 10_000
+R = 100_000
 ltl_dict = {
     'Safe Aborbing States': {
         'ltl': r'(FGa | FGb) & G!c',

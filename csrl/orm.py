@@ -62,12 +62,12 @@ class OmegaRewardMachine:
     
     """
     
-    def __init__(self, min_discount=0.9, reward_scale=10.0, nonnegative_rewards=False, **oa_kwargs):
+    def __init__(self, min_discount=0.9, reward_scale=10.0, nonnegative_rewards=False, oa=None, **oa_kwargs):
 
         self.min_discount = min_discount
         self.reward_scale = reward_scale
         self.nonnegative_rewards = nonnegative_rewards
-        self.oa = OmegaAutomaton(**oa_kwargs)
+        self.oa = oa if oa is not None else OmegaAutomaton(**oa_kwargs)
         self.deterministic = self.oa.spot_oa.is_deterministic()
         
 
@@ -164,7 +164,9 @@ class OmegaRewardMachine:
         else:
             next_q = self.delta[self.q][label][eps_action]
             reward = self.rewards[self.q][label][eps_action]
+        
         self.q = next_q
+
         return next_q, reward
     
 
