@@ -3,7 +3,7 @@ from ..oa import OmegaAutomaton, spot
 from collections import Counter
 from random import choice
 
-R = 2000
+R = 10_000
 ltl_dict = {
     'Safe Aborbing States': {
         'ltl': r'(FGa | FGb) & G!c',
@@ -14,6 +14,7 @@ ltl_dict = {
             (False, [('b',), ('a',), ('a', 'b'), ('c',), *[('b',) for _ in range(R)]]),
         ],
     },
+    # TODO: Add paths for testing to the following LTL formulas
     'Nursery': {
         'ltl': r'G(!d & ((b & X!b) -> X(!b U (a | c))) & ((!b & Xb & XX!b) -> (!a U b)) & (c -> (!a U b)) & ((b & X b)->Fa))',
     },
@@ -118,7 +119,6 @@ def test_oa_construction():
                         # Check if the shape is correctly defined
                         assert isinstance(oa.shape, tuple)
                         assert len(oa.shape) == 2
-
 
 
 

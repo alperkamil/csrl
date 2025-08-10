@@ -302,3 +302,68 @@ def test_gridworld_transitions():
     np.testing.assert_almost_equal(probs[1], 0.1)  # 'R'
     np.testing.assert_almost_equal(probs[2], 0.1)  # 'L'
 
+    dsts, probs = gw.get_transition_probs((0, 0), 'D')
+    assert dsts[0]==(1,0)  # 'D'
+    assert dsts[1]==(0,1)  # 'R'
+    assert dsts[2]==(0,0)  # 'L'
+    np.testing.assert_almost_equal(probs[0], 0.8)  # 'D'
+    np.testing.assert_almost_equal(probs[1], 0.1)  # 'R'
+    np.testing.assert_almost_equal(probs[2], 0.1)  # 'L'
+
+
+    dsts, probs = gw.get_transition_probs((0, 0), 'R')
+    assert dsts[0]==(0,0)  # 'U'
+    assert dsts[1]==(1,0)  # 'D'
+    assert dsts[2]==(0,1)  # 'R'
+    np.testing.assert_almost_equal(probs[0], 0.1)  # 'U'
+    np.testing.assert_almost_equal(probs[1], 0.1)  # 'D'
+    np.testing.assert_almost_equal(probs[2], 0.8)  # 'R'
+
+
+    dsts, probs = gw.get_transition_probs((0, 0), 'L')
+    assert dsts[0]==(0,0)  # 'U'
+    assert dsts[1]==(1,0)  # 'D'
+    assert dsts[2]==(0,0)  # 'L'
+    np.testing.assert_almost_equal(probs[0], 0.1)  # 'U'
+    np.testing.assert_almost_equal(probs[1], 0.1)  # 'D'
+    np.testing.assert_almost_equal(probs[2], 0.8)  # 'L'
+
+
+    structure = np.array([
+        ['T',  'E',  'E',  'E'],
+        ['E',  'E',  'E',  'E'],
+        ['E',  'E',  'E',  'E'],
+        ['E',  'E',  'E',  'E']
+    ])
+    gw = GridWorld(shape=shape, structure=structure, labels=labels)
+    dsts, probs = gw.get_transition_probs((0, 0), 'U')
+    assert dsts[0]==(0,0)  # 'U'
+    assert dsts[1]==(0,0)  # 'R'
+    assert dsts[2]==(0,0)  # 'L'
+    np.testing.assert_almost_equal(probs[0], 0.8)  # 'U'
+    np.testing.assert_almost_equal(probs[1], 0.1)  # 'R'
+    np.testing.assert_almost_equal(probs[2], 0.1)  # 'L'
+
+    dsts, probs = gw.get_transition_probs((0, 0), 'D')
+    assert dsts[0]==(0,0)  # 'D'
+    assert dsts[1]==(0,0)  # 'R'
+    assert dsts[2]==(0,0)  # 'L'
+    np.testing.assert_almost_equal(probs[0], 0.8)  # 'D'
+    np.testing.assert_almost_equal(probs[1], 0.1)  # 'R'
+    np.testing.assert_almost_equal(probs[2], 0.1)  # 'L'
+
+    dsts, probs = gw.get_transition_probs((0, 0), 'R')
+    assert dsts[0]==(0,0)  # 'U'
+    assert dsts[1]==(0,0)  # 'D'
+    assert dsts[2]==(0,0)  # 'R'
+    np.testing.assert_almost_equal(probs[0], 0.1)  # 'U'
+    np.testing.assert_almost_equal(probs[1], 0.1)  # 'D'
+    np.testing.assert_almost_equal(probs[2], 0.8)  # 'R'
+
+    dsts, probs = gw.get_transition_probs((0, 0), 'L')
+    assert dsts[0]==(0,0)  # 'U'
+    assert dsts[1]==(0,0)  # 'D'
+    assert dsts[2]==(0,0)  # 'L'
+    np.testing.assert_almost_equal(probs[0], 0.1)  # 'U'
+    np.testing.assert_almost_equal(probs[1], 0.1)  # 'D'
+    np.testing.assert_almost_equal(probs[2], 0.8)  # 'L'
