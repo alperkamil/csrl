@@ -1,5 +1,5 @@
 
-from ..gridworld import GridWorld
+from ..envs import GridWorldEnv
 import numpy as np 
 
 def test_gridworld_construction():

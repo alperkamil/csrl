@@ -1,4 +1,4 @@
-from .oa import OmegaAutomaton
+from .omega_automata import OmegaAutomaton
 
 class OmegaRewardMachine:
     """
