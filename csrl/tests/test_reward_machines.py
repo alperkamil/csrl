@@ -1,9 +1,7 @@
 
-from ..orm import OmegaRewardMachine
-from ..oa import OmegaAutomaton
-from .test_oa import ltl_dict, R
-from collections import Counter
-from random import choice
+from ..automata import OmegaRewardMachine
+from ..automata import OmegaAutomaton
+from .test_omega_automata import ltl_dict
 import numpy as np
 
 

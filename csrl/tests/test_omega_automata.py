@@ -1,7 +1,9 @@
 
-from ..oa import OmegaAutomaton, spot
+from ..automata import OmegaAutomaton
 from collections import Counter
 from random import choice
+
+import spot
 
 R = 100_000
 ltl_dict = {
