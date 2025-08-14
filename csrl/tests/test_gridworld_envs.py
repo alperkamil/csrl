@@ -208,13 +208,13 @@ def test_gridworld_construction():
         
     gw = GridWorldEnv(shape=shape, structure=structure, labels=labels, figsize=10)
     gw.plot()
-    transition_states, transition_probs, rewards = gw.get_vectorized_transitions_rewards()
+    transition_states, transition_probs, rewards = gw.get_transition_reward_arrays()
 
 
     for name, kwargs in gridworld_dict.items():
         gw = GridWorldEnv(**kwargs)
         gw.plot()
-        transition_states, transition_probs, rewards = gw.get_vectorized_transitions_rewards()
+        transition_states, transition_probs, rewards = gw.get_transition_reward_arrays()
 
     
 

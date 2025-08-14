@@ -64,11 +64,9 @@ class OmegaRewardMachine:
     
     """
     
-    def __init__(self, min_discount=0.9, reward_scale=10.0, nonnegative_rewards=False, oa=None, **oa_kwargs):
+    def __init__(self, rmax=0.1, oa=None, **oa_kwargs):
 
-        self.min_discount = min_discount
-        self.reward_scale = reward_scale
-        self.nonnegative_rewards = nonnegative_rewards
+        self.rmax = rmax
         self.oa = oa if oa is not None else OmegaAutomaton(**oa_kwargs)
         self.deterministic = self.oa.spot_oa.is_deterministic()
         
@@ -121,12 +119,9 @@ class OmegaRewardMachine:
         reward: float
             The reward for the given color.
         """
-        rmax = (1 - self.min_discount)  # Maximum unscaled reward
-        reward = self.reward_scale * rmax**(self.oa.shape[0]-color)
-        if self.nonnegative_rewards:
-            reward *= int(color%2==1)
-        else:
-            reward *= 2 * int(color%2==1) - 1
+        reward_abs_value = self.rmax**(self.oa.shape[0]-color) 
+        reward_sign = 2 * int(color%2==1) - 1
+        reward = reward_sign * reward_abs_value
             
         return reward
 

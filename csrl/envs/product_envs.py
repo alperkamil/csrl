@@ -2,13 +2,17 @@ import gymnasium as gym
 import numpy as np
 from itertools import product
 
+from .array_envs import ArrayEnv
 
-class DiscreteProductEnv(gym.Env):
 
-    def __init__(self, gw, orm):
+class DiscreteProductEnv(gym.Env, ArrayEnv):
+
+    def __init__(self, gw, orm, discounting='adaptive', **kwargs):
 
         self.gw = gw
         self.orm = orm
+
+        super().__init__(discounting=discounting, **kwargs)
 
         self.observation_space = gym.spaces.MultiDiscrete(gw.shape + orm.shape) 
         self.action_space = gym.spaces.MultiDiscrete((len(gw.action_dirs), orm.max_eps_actions))
@@ -30,8 +34,8 @@ class DiscreteProductEnv(gym.Env):
         return next_gw_state + (next_orm_mode,), reward, False, False, info
     
 
-    def get_vectorized_transitions_rewards(self):
-        transition_shape = tuple(self.observation_space.nvec) + tuple(self.action_space.nvec) + (self.gw.max_transitions,) + self.observation_space.shape
+    def get_transition_reward_arrays(self):
+        transition_shape = tuple(self.observation_space.nvec) + tuple(self.action_space.nvec) + (self.gw.max_transitions, len(self.observation_space.nvec))
         transition_states = np.zeros(transition_shape, dtype=int)
         transition_probs = np.zeros(transition_shape[:-1], dtype=float)  # Ignore the last dimension, which is for destination product states
         rewards = np.zeros(transition_shape[:-2], dtype=float)  # Ignore the last two dimensions, which are for transition probabilities and destination product states

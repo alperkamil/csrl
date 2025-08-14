@@ -29,7 +29,7 @@ def test_orm_acceptance():
         ltl = info['ltl']
         for accepting, path in info.get('paths', []):
             for oa_type in ['dpa', 'ldba']:
-                orm = OmegaRewardMachine(min_discount=0.99, ltl=ltl, oa_type=oa_type)
+                orm = OmegaRewardMachine(rmax=0.01, ltl=ltl, oa_type=oa_type)
                 max_G = 0
                 for i in range(1 if oa_type=='dpa' else 100):
                     orm.reset()
@@ -37,17 +37,11 @@ def test_orm_acceptance():
                     total_discount = 1.0
                     for t, label in enumerate(path):
                         mode, reward = orm.step(label, np.random.randint(0, orm.max_eps_actions))
-                        reward /= orm.reward_scale  # Scale down the reward
-
                         G += total_discount * max(0,reward)  # Nonnegative rewards only
-                        # if t < 5:
-                            # print(label, reward, orm.mode)
-
                         discount = 1.0 - np.abs(reward)  # Update the discount factor based on the reward
                         total_discount *= discount
                     max_G = max(max_G, G)
 
-                # print(orm.__dict__)
                 print(f"LTL: {ltl}, G: {max_G}, accepting: {accepting}")
                 if 0 <= max_G <= 0.2:
                     accepts = False

@@ -14,8 +14,10 @@ from matplotlib.font_manager import FontProperties
 from ipywidgets.widgets import IntSlider
 from ipywidgets import interact
 
+from .array_envs import ArrayEnv
 
-class GridWorldEnv(gym.Env):
+
+class GridWorldEnv(gym.Env, ArrayEnv):
     """
     This class implements a 2D grid world where an agent can move up, down, right or left.
     The `structure[i, j]` entry stores the type of the cell at `(i, j)`.
@@ -81,7 +83,9 @@ class GridWorldEnv(gym.Env):
 
     """
 
-    def __init__(self, shape, structure=None, rewards=None, labels=None, prob_intended=0.8, figsize=5, lcmap={}, cmap=plt.cm.RdBu):
+    def __init__(self, shape, structure=None, rewards=None, labels=None, prob_intended=0.8, discounting=0.99, figsize=5, lcmap={}, cmap=plt.cm.RdBu, **kwargs):
+
+        super().__init__(discounting=discounting, **kwargs)
 
         self.action_dirs = ['U', 'D', 'R', 'L']  # The action list for "Up, Down, Right, Left"
         self.shape = shape
@@ -108,9 +112,10 @@ class GridWorldEnv(gym.Env):
         self.max_transitions = 3  # The maximum number of different transitions for the agent to take in a single step
 
         self.observation_space = gym.spaces.MultiDiscrete(shape)  # The observation space is the grid coordinates
-        self.action_space = gym.spaces.Discrete(len(self.action_dirs))  # The action space is the action directions
+        self.action_space = gym.spaces.MultiDiscrete((len(self.action_dirs),))  # The action space is the action directions
 
         self.s = self.s0  # The current state of the agent
+
 
     def reset(self, seed=None, options=None):
         """Resets the environment to the initial state.
@@ -131,7 +136,8 @@ class GridWorldEnv(gym.Env):
         """
         self.s = self.s0  # Reset the agent's state to the initial state
         return self.s, {}
-    
+
+
     def step(self, action):
         """Takes a step in the environment based on the action taken by the agent.
         Parameters
@@ -644,7 +650,7 @@ class GridWorldEnv(gym.Env):
             plt.savefig(save,bbox_inches='tight')
 
 
-    def plot_list(self,values_list,policy_list=None):
+    def plot_list(self,values_list, policy_list=None):
         """Plots the list of cell values with a slider.
 
         Parameters
@@ -660,21 +666,21 @@ class GridWorldEnv(gym.Env):
         # A helper function for the slider
         def plot_values(t):
             if policy_list is not None:
-                self.plot(values_list[t],policy_list[t])
+                self.plot(values_list[t], policy_list[t])
             else:
                 self.plot(values_list[t])
 
         T = len(values_list)
-        w=IntSlider(values=0,min=0,max=T-1)
+        w=IntSlider(values=0, min=0, max=T-1)
 
-        interact(plot_values,t=w)
+        interact(plot_values, t=w)
 
     def _repr_png_(self):
         self.plot()
 
 
 
-    def get_vectorized_transitions_rewards(self):
+    def get_transition_reward_arrays(self):
         """Returns the vectorized transitions and rewards for the grid world environment.
         The transition states are represented as a 4D array where the first two dimensions correspond to the grid shape, the third dimension corresponds to the action directions, and the last dimension corresponds to the destination states.
         The transition probabilities are represented as a 3D array where the first two dimensions correspond to the grid shape, the third dimension corresponds to the action directions, and the last dimension corresponds to the destination states.
@@ -704,8 +710,11 @@ class GridWorldEnv(gym.Env):
             transition_probs[row, col, action, dst_id] = probs[dst_id]
             transition_states[row, col, action, dst_id] = dst_cells[dst_id]
 
-        
-        return transition_states, transition_probs, self.rewards
+        rewards = np.zeros(transition_shape[:-2], dtype=float)
+        for row, col, action in product(*map(range, rewards.shape)):
+            rewards[row, col, action] = self.rewards[(row, col)]
+
+        return transition_states, transition_probs, rewards
 
 
 

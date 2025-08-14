@@ -14,4 +14,4 @@ def test_product_construction():
             ltl = ltl_dict[name]['ltl']
             orm = OmegaRewardMachine(ltl=ltl, oa_type=oa_type)
             product_env = DiscreteProductEnv(gw, orm)
-            transition_states, transition_probs, rewards = product_env.get_vectorized_transitions_rewards()
+            transition_states, transition_probs, rewards = product_env.get_transition_reward_arrays()
