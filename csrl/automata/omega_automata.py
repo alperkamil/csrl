@@ -125,8 +125,7 @@ class OmegaAutomaton:
 
 
     def ltl2hoa(self, ltl, oa_type):
-        """
-        Returns the HOA representation of the OA obtained by executing the command-line tool `ltl2[oa_type]` with `ltl` as the input LTL formula.
+        """Returns the HOA representation of the OA obtained by executing the command-line tool `ltl2[oa_type]` with `ltl` as the input LTL formula.
 
         Parameters
         ----------
@@ -148,8 +147,7 @@ class OmegaAutomaton:
         return hoa
 
     def hoa2spot(self, hoa_path, save_svg=False):
-        """
-        Constructs a spot omega automaton from the given OA description in the HOA format.
+        """Constructs a spot omega automaton from the given OA description in the HOA format.
         
         Parameters
         ----------
@@ -185,8 +183,7 @@ class OmegaAutomaton:
         return spot_oa
 
     def spot2specs(self, spot_oa):
-        """
-        Returns a tuple of OA specifications obtained from the spot OA object `spot_oa`.
+        """Returns a tuple of OA specifications obtained from the spot OA object `spot_oa`.
         The tuple consists of the initial state, list representations of the transition function, the epsilon-moves, the acceptance condition, and the shape of the OA.
 
         Parameters
@@ -262,8 +259,7 @@ class OmegaAutomaton:
         return output
 
     def _repr_html_(self):
-        """
-        Returns the string of the SVG representation of the OA within div tags for visualization in a Jupyter notebook.
+        """Returns the string of the SVG representation of the OA within div tags for visualization in a Jupyter notebook.
 
         Returns
         -------
@@ -276,8 +272,7 @@ class OmegaAutomaton:
 
     
     def random_hoa_path(self, ltl, oa_type):
-        """
-        Returns a random file name with the given extension.
+        """Returns a random file name with the given extension.
 
         Parameters
         ----------

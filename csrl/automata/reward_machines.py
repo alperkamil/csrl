@@ -1,4 +1,6 @@
 from .omega_automata import OmegaAutomaton
+import numpy as np
+from itertools import product
 
 class OmegaRewardMachine:
     """
@@ -27,21 +29,21 @@ class OmegaRewardMachine:
     labels : list of str
         The labels of the ORM. A label is a set of APs, and the labels are the power set of the APs.
         
-    q0 : int
-        The initial state of the ORM.
+    m0 : int
+        The initial mode of the ORM.
 
     delta : list of dicts
         A list representation of the transition function of the ORM.
-        For DPAs, `delta[q][label]` is the ORM state that the ORM makes a transition to when the symbol `label` is consumed in the ORM state `q`.
-        For LDBAs, `delta[q][label]` is the list of ORM states that the ORM can make a nondeterministic transition to when the symbol `label` is consumed in the ORM state `q`.
+        For DPAs, `delta[mode][label]` is the ORM mode that the ORM makes a transition to when the symbol `label` is consumed in given `mode`.
+        For LDBAs, `delta[mode][label]` is the list of ORM modes that the ORM can make a nondeterministic transition to when the symbol `label` is consumed in given `mode`.
 
     shape : tuple
-        The tuple of the number of ORM states.; i.e., : `(n_ms,)`
+        The tuple of the number of ORM modes.; i.e., : `(n_ms,)`
 
     rewards : list of dicts
-        A list of dictionaries representing the rewards for each state in the ORM.
-        For DPAs, `rewards[q][label]` is the reward for consuming the symbol `label` in the ORM state `q`.
-        For LDBAs, `rewards[q][label]` is a list of rewards for consuming the symbol `label` in the ORM state `q`, corresponding to each nondeterministic transition.
+        A list of dictionaries representing the rewards for each mode in the ORM.
+        For DPAs, `rewards[mode][label]` is the reward for consuming the symbol `label` in given `mode`.
+        For LDBAs, `rewards[mode][label]` is a list of rewards for consuming the symbol `label` in given `mode`, corresponding to each nondeterministic transition.
 
     
 
@@ -73,21 +75,22 @@ class OmegaRewardMachine:
 
         self.aps = self.oa.aps
         self.labels = self.oa.labels
-        self.q0 = self.oa.q0
         self.delta = self.oa.delta
-        self.shape = (self.oa.shape[1],)
+        self.shape = (self.oa.shape[1],)  # Number of ORM modes (memory states)
+
+        self.mode0 = self.oa.q0  # Initial mode / memory state
         
         self.rewards = [{} for _ in range(len(self.oa.acc))]
-        self.max_n_eps_actions = 1
-        for q in range(len(self.oa.acc)):
+        self.max_eps_actions = 1
+        for mode in range(len(self.oa.acc)):  # For all modes / memory states
             for label in self.oa.labels:
                 if self.deterministic:
-                    self.rewards[q][label] = self.calculate_reward(self.oa.acc[q][label])
+                    self.rewards[mode][label] = self.calculate_reward(self.oa.acc[mode][label])
                 else:
-                    self.rewards[q][label] = [self.calculate_reward(color) for color in self.oa.acc[q][label]]
-                    self.max_n_eps_actions = max(self.max_n_eps_actions, len(self.rewards[q][label]))
+                    self.rewards[mode][label] = [self.calculate_reward(color) for color in self.oa.acc[mode][label]]
+                    self.max_eps_actions = max(self.max_eps_actions, len(self.rewards[mode][label]))
 
-        self.q = self.q0
+        self.mode = self.mode0
 
         try:
             import pydot
@@ -106,8 +109,7 @@ class OmegaRewardMachine:
 
 
     def calculate_reward(self, color):
-        """
-        Calculates the reward for a given color in the ORM.
+        """Calculates the reward for a given color in the ORM.
 
         Parameters
         ----------
@@ -130,25 +132,23 @@ class OmegaRewardMachine:
 
 
     def reset(self):
-        """
-        Resets the ORM to its initial state.
+        """Resets the ORM to its initial mode.
 
         Returns
         -------
-        q0: int
-            The initial state of the ORM after reset.
+        m0: int
+            The initial mode of the ORM after reset.
         """
-        self.q = self.q0
-        return self.q0
+        self.mode = self.mode0
+        return self.mode0
 
 
     def step(self, label, eps_action=0):
-        """
-        Takes a step in the ORM by consuming a label and returns the next state and reward.
+        """Takes a step in the ORM by consuming a label and returns the next mode and reward.
 
         Parameters
         ----------
-        label: str
+        label: tuple
             The label to be consumed in the ORM.
 
         eps_action: int, optional
@@ -156,40 +156,75 @@ class OmegaRewardMachine:
 
         Returns
         -------
-        next_q: int
-            The next state of the ORM after consuming the label.
+        next_mode: int
+            The next mode of the ORM after consuming the label.
         
         reward: float or list of floats
-            The reward associated with consuming the label in the current state.
+            The reward associated with consuming the label in the current mode.
         """
-        if self.deterministic:
-            next_q = self.delta[self.q][label]
-            reward = self.rewards[self.q][label]
-        else:
-            next_q = self.delta[self.q][label][eps_action]
-            reward = self.rewards[self.q][label][eps_action]
-        
-        self.q = next_q
+        next_modes, rewards = self.get_next_modes_rewards(self.mode, label)
+        next_mode = next_modes[eps_action]
+        reward = rewards[eps_action]
 
-        return next_q, reward
+        self.mode = next_mode
+
+        return next_mode, reward
     
 
-    def get_n_eps_actions(self, label):
-        """
-        Returns the number of epsilon actions for a given label in the ORM.
+    def get_next_modes_rewards(self, mode, label):
+        """Returns the next modes and rewards for a given mode and label in the ORM.
 
         Parameters
         ----------
-        label: str
+        mode: int
+            The current mode of the ORM.
+        
+        label: tuple
+            The label for which the next modes and rewards are to be returned.
+
+        Returns
+        -------
+        modes: list of int
+            A list of integers representing the next modes for the given mode and label.
+        
+        rewards: list of floats
+            A list of floats representing the rewards for the given mode and label.
+        """
+      
+        if self.deterministic:
+            modes = [self.delta[mode][label]]
+            rewards = [self.rewards[mode][label]]
+        else:
+            modes = self.delta[mode][label]
+            rewards = self.rewards[mode][label]
+
+        modes_rep, rewards_rep = [], []
+        for i in range(self.max_eps_actions - len(rewards)):
+            modes_rep.append(modes[i % len(modes)])
+            rewards_rep.append(rewards[i % len(rewards)])
+
+        rewards += rewards_rep
+        modes += modes_rep
+
+        return modes, rewards
+
+        
+    
+    def get_eps_actions(self, label):
+        """Returns the number of epsilon actions for a given label in the ORM.
+
+        Parameters
+        ----------
+        label: tuple
             The label for which the epsilon actions are to be returned.
 
         Returns
         -------
-        n_eps_actions: list of int
+        eps_actions: list of int
             A list of integers representing the epsilon actions for the given label.
         """
-        n_eps_actions = 1 if self.deterministic else len(self.delta[self.q][label])
-        return n_eps_actions
+        n_eps_actions = 1 if self.deterministic else len(self.delta[self.mode][label])
+        return range(n_eps_actions)
         
 
     def _repr_html_(self):
@@ -204,3 +239,31 @@ class OmegaRewardMachine:
         """
         return self.svg
 
+
+
+    def get_vectorized_transitions_rewards(self):
+        """
+        Returns the vectorized transitions and rewards for the ORM.
+
+        Returns
+        -------
+        transition_modes: np.ndarray
+            A numpy array of shape `(n_ms, n_labels, max_eps_actions)` representing the next mode for each mode and label in the ORM.
+        
+        rewards: np.ndarray
+            A numpy array of shape `(n_ms, n_labels, max_eps_actions)` representing the rewards for each mode and label in the ORM.
+        """
+
+        transition_shape = self.shape + (len(self.labels), self.max_eps_actions)  # Ignore + (len(self.shape),) as it is only one dimensional
+        
+        transition_modes = np.zeros(transition_shape, dtype=int)
+        transition_rewards = np.zeros(transition_shape, dtype=float)
+
+        for mode, label_id, in product(*map(range, transition_shape[:-1])):  # Drop the last dimension as it is implicit in assignments
+            label = self.labels[label_id]
+            next_modes, rewards  = self.get_next_modes_rewards(mode, label)
+            transition_modes[mode, label_id] = next_modes
+            transition_rewards[mode, label_id] = rewards
+
+        
+        return transition_modes, transition_rewards

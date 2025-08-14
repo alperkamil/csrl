@@ -1,5 +1,5 @@
 
-from ..automata import OmegaAutomaton
+from .. import OmegaAutomaton
 from collections import Counter
 from random import choice
 
@@ -20,6 +20,9 @@ ltl_dict = {
     'Nursery': {
         'ltl': r'G(!d & ((b & X!b) -> X(!b U (a | c))) & ((!b & Xb & XX!b) -> (!a U b)) & (c -> (!a U b)) & ((b & X b)->Fa))',
     },
+    'Robust Control': {
+        'ltl': r'GFb & GFc & (FGd | FGe)',
+    },
     'Monitoring while Avoiding Adversary': {
         'ltl': r'GFb & GFc & (FGd | FGe) & G!a',
     },
@@ -27,7 +30,7 @@ ltl_dict = {
         'ltl': r'F("anomaly" & X("anomaly" & X("attack" & XF"attack")))',
     },
     'Surveillance': {
-        'ltl': r'GFb & GFc & FGd',
+        'ltl': r'GFb & GFc & FGf',
     },
     'Sequencing': {
         'ltl': r'F(b & F(c & F(d & Fe))) & G!a',
@@ -121,7 +124,6 @@ def test_oa_construction():
                         # Check if the shape is correctly defined
                         assert isinstance(oa.shape, tuple)
                         assert len(oa.shape) == 2
-
 
 
 

@@ -64,10 +64,24 @@ class GridWorldEnv(gym.Env):
     action_dirs : list
         The list of available actions: `['U', 'D', 'R', 'L']`.
 
+    s0 : tuple
+        The initial state of the agent, which is `(0, 0)` by default.
+
+    max_transitions : int
+        The maximum number of different transitions for the agent to take in a single step, which is set to `3` by default.
+
+    observation_space : gym.spaces.MultiDiscrete
+        The observation space of the environment, which is a multi-discrete space representing the grid coordinates.
+
+    action_space : gym.spaces.Discrete
+        The action space of the environment, which is a discrete space representing the action directions.
+     
+    s : tuple
+        The current state of the agent, initialized to `s0`.
 
     """
 
-    def __init__(self, shape, structure=None, rewards=None, labels=None, prob_intended=0.8, figsize=6, lcmap={}, cmap=plt.cm.RdBu):
+    def __init__(self, shape, structure=None, rewards=None, labels=None, prob_intended=0.8, figsize=5, lcmap={}, cmap=plt.cm.RdBu):
 
         self.action_dirs = ['U', 'D', 'R', 'L']  # The action list for "Up, Down, Right, Left"
         self.shape = shape
@@ -91,6 +105,8 @@ class GridWorldEnv(gym.Env):
         self.cmap = cmap 
 
         self.s0 = (0, 0)  # The initial state of the agent
+        self.max_transitions = 3  # The maximum number of different transitions for the agent to take in a single step
+
         self.observation_space = gym.spaces.MultiDiscrete(shape)  # The observation space is the grid coordinates
         self.action_space = gym.spaces.Discrete(len(self.action_dirs))  # The action space is the action directions
 
@@ -135,8 +151,8 @@ class GridWorldEnv(gym.Env):
         info : dict
             Additional information about the step, including the labels of the current state.
         """
-        dsts, probs = self.get_transition_probs(self.s, action)       
-        self.s = np.random.choice(dsts, p=probs)
+        dst_cells, probs = self.get_transition_probs(self.s, action)       
+        self.s = np.random.choice(dst_cells, p=probs)
         r = self.rewards[self.s]  # Get the reward for the current state
         info = {'labels': self.labels[self.s]}  # Get the labels for the current state
         return self.s, r, False, False, info
@@ -144,8 +160,7 @@ class GridWorldEnv(gym.Env):
         
 
     def cells(self):
-        """
-        The cell generator.
+        """The cell generator.
 
         Yields
         ------
@@ -159,8 +174,7 @@ class GridWorldEnv(gym.Env):
             yield cell
 
     def random_cell(self):
-        """
-        Generates a random cell coordinate.
+        """Generates a random cell coordinate.
 
         Returns
         -------
@@ -174,8 +188,7 @@ class GridWorldEnv(gym.Env):
         return cell
 
     def get_transition_probs(self, cell, action_dir, attack_type=None, attack_dir=None):
-        """
-        Returns the list of possible destionation cells with their probabilities `(dst_cells, probs)` when the action with the name `action_dir` is taken in the cell at the coordinates specified by `cell`.
+        """Returns the list of possible destionation cells with their probabilities `(dst_cells, probs)` when the action with the name `action_dir` is taken in the cell at the coordinates specified by `cell`.
         The agent moves in the intented direction with a probability of `self.prob_intended`, and moves sideways with a probability of `(1-self.prob_intended)/2`.
         If exists, the adversarial action with the name `attack_dir` can further manipulate the movement:
         if the the adversarial action is in the opposite direction to the agent's action, the agent moves as described above (default); 
@@ -241,38 +254,50 @@ class GridWorldEnv(gym.Env):
                 probs = []  # Reset the default transition probabilities
                 dst_action = self.move(cell, action_dir)  # The destination cell in the action direction
                 dst_attack = self.move(cell, attack_dir)  # The destination cell in the attack direction
-                dsts = [dst_action, dst_attack, cell]  # The cell is a placeholder
+                dst_cells = [dst_action, dst_attack, cell]  # The cell is a placeholder
                 probs = [self.prob_intended, 1-self.prob_intended, 0]
-                return dsts, probs
+                return dst_cells, probs
 
         # Should not reach here
 
     
     def get_transition_probs_without_attack(self, cell, action_dir):
+        """Returns the list of possible destionation cells with their probabilities `(dst_cells, probs)` when the action with the name `action_dir` is taken in the cell at the coordinates specified by `cell`.
+        The agent moves in the intented direction with a probability of `self.prob_intended`, and moves sideways with a probability of `(1-self.prob_intended)/2`.
+        If the cell in the direction of the movement is occupied by an obstacle or the agent is in a trap cell, the agent cannot move and stays in the same cell.
+        Parameters
+        ----------
+        cell : tuple
+            The coordinate of the cell `(i,j)`.
+        action_dir: str
+            The name of the action.
+        
+        Returns
+        -------
+        output: tuple
+            The list of possible destionation cells and their probabilities.
+
         """
-        Returns the list of possible destionation cells with their probabilities `(dst_cells, probs)` when the action with the name `action_dir` is taken in the cell at the coordinates specified by `cell`.
-        The agent moves in the intented direction with a probability of `self.prob_intended`, and moves sideways with a probability of `(1-self.prob_intended)/2`."""
         
         # Get the destination cells and their corresponding transition probabilities for each direction
-        dsts, probs = [], []  # The destination cells and transition probabilities
+        dst_cells, probs = [], []  # The destination cells and transition probabilities
         for direction in self.action_dirs:  # `['U', 'D', 'L', 'R']`
             if direction == action_dir:  # The intended direction
-                dsts.append(self.move(cell, direction))
+                dst_cells.append(self.move(cell, direction))
                 probs.append(self.prob_intended)
 
             elif self.perpendicular(direction, action_dir):  # The directions perpendicular to the intended direction
-                dsts.append(self.move(cell, direction))
+                dst_cells.append(self.move(cell, direction))
                 probs.append((1-self.prob_intended)/2)
             
             # else / elif self.opposite(action_dir, attack_dir):
                 # Opposite direction; cannot move; ignore
 
-        return dsts, probs
+        return dst_cells, probs
     
 
     def opposite(self, first_direction, second_direction):
-        """
-        Returns `True` if `first_direction` is in the opposite direction to `second_direction`, and `False` otherwise.
+        """Returns `True` if `first_direction` is in the opposite direction to `second_direction`, and `False` otherwise.
 
         Parameters
         ----------
@@ -303,8 +328,7 @@ class GridWorldEnv(gym.Env):
         return output
 
     def perpendicular(self, first_direction, second_direction):
-        """
-        Returns `True` if `first_direction` is in the perpendicular direction to `second_direction`, and `False` otherwise.
+        """Returns `True` if `first_direction` is in the perpendicular direction to `second_direction`, and `False` otherwise.
 
         Parameters
         ----------
@@ -335,8 +359,7 @@ class GridWorldEnv(gym.Env):
         return output
 
     def move(self, src, direction):
-        """
-        Returns the destination cell if the agent can move from the cell `src` towards `direction` and `None` otherwise.
+        """Returns the destination cell if the agent can move from the cell `src` towards `direction` and `None` otherwise.
         The agent cannot move from `src` if `src` is a trap cell or occupied by an obstacle.
         Similarly, the agent cannot move if the destination cell is occupied by an obstacle or beyond the walls.
         Lastly, the agent cannot move if the direction is blocked.
@@ -399,8 +422,7 @@ class GridWorldEnv(gym.Env):
         return dst
 
     def plot(self, values=None, policy=None, adversarial_policy=None, agent=None, adversarial_agent=None, adversarial_agent_label=None, adversarial_override=False, save=None, hidden=[], path={}, title=None):
-        """
-        Plots the values of the cells as a color matrix.
+        """Plots the values of the cells as a color matrix.
 
         Parameters
         ----------
@@ -623,8 +645,7 @@ class GridWorldEnv(gym.Env):
 
 
     def plot_list(self,values_list,policy_list=None):
-        """
-        Plots the list of cell values with a slider.
+        """Plots the list of cell values with a slider.
 
         Parameters
         ----------
@@ -650,3 +671,42 @@ class GridWorldEnv(gym.Env):
 
     def _repr_png_(self):
         self.plot()
+
+
+
+    def get_vectorized_transitions_rewards(self):
+        """Returns the vectorized transitions and rewards for the grid world environment.
+        The transition states are represented as a 4D array where the first two dimensions correspond to the grid shape, the third dimension corresponds to the action directions, and the last dimension corresponds to the destination states.
+        The transition probabilities are represented as a 3D array where the first two dimensions correspond to the grid shape, the third dimension corresponds to the action directions, and the last dimension corresponds to the destination states.
+        The rewards are represented as a 2D array corresponding to the grid shape.
+        The shape of the transition states is `(n_rows, n_cols, n_actions, max_transitions, n_rows, n_cols)`, where `n_rows` and `n_cols` are the dimensions of the grid world, `n_actions` is the number of available
+        actions, and `max_transitions` is the maximum number of different transitions for the agent to take in a single step.
+
+        Returns
+        -------
+        transition_states : array, shape=(n_rows, n_cols, n_actions, max_transitions, n_rows, n_cols)
+            The transition states for the grid world environment.
+        transition_probs : array, shape=(n_rows, n_cols, n_actions, max_transitions)
+            The transition probabilities for the grid world environment.
+        rewards : array, shape=(n_rows, n_cols)
+            The rewards for the grid world environment.
+        """
+
+        transition_shape = self.shape + (len(self.action_dirs), self.max_transitions, len(self.shape))
+
+        transition_states = np.zeros(transition_shape, dtype=int)
+        transition_probs = np.zeros(transition_shape[:-1], dtype=float)  # Ignore the last dimension, which is for destination states
+
+        for row, col, action, dst_id in product(*map(range, transition_probs.shape)):
+            cell = (row, col)
+            action_dir = self.action_dirs[action]
+            dst_cells, probs = self.get_transition_probs(cell, action_dir)
+            transition_probs[row, col, action, dst_id] = probs[dst_id]
+            transition_states[row, col, action, dst_id] = dst_cells[dst_id]
+
+        
+        return transition_states, transition_probs, self.rewards
+
+
+
+
