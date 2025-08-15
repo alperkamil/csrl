@@ -1,4 +1,5 @@
 import numpy as np
+from numba import jit, prange
 
 class ValueIteration:
 
@@ -67,6 +68,49 @@ class ValueIteration:
             self.policy[state] = best_action
 
         return self.policy
+    
+    def run_numba(self, max_iterations=10_000, tolerance=1e-7):
+        values = self.values.reshape(-1)
+        next_values = self.next_values.reshape(-1)
+        tmp_action_values = self.tmp_action_values.reshape(-1)
+        transition_probs = self.transition_probs.reshape((values.shape[0], tmp_action_values.shape[0], self.transition_probs.shape[-1]))
+        rewards = self.rewards.reshape((values.shape[0], tmp_action_values.shape[0]))
+
+        transition_states = self.transition_states.reshape((-1, self.transition_states.shape[-1])).T
+        transition_states = np.ravel_multi_index(transition_states, self.values.shape)
+        transition_states = transition_states.reshape((values.shape[0], tmp_action_values.shape[0], self.transition_probs.shape[-1]))
+
+        for i in range(max_iterations):
+            iterate_numba(values, next_values, tmp_action_values, self.discounting, transition_states, transition_probs, rewards)
+            values, next_values = next_values, values
+
+            err = np.max(np.abs(next_values - values))
+            if err < tolerance:
+                break
+
+        print(f"Value iteration ended after {i+1} iterations with max error {err:.5e}")
+
+
+        return values
         
 
-    
+@jit(nopython=True, parallel=True, fastmath=True, cache=False)
+def iterate_numba(values, next_values, tmp_action_values, discounting, transition_states, transition_probs, rewards):
+    for state in prange(values.shape[0]):
+        action_values = np.zeros_like(tmp_action_values)
+        for action in prange(tmp_action_values.shape[0]):
+            action_values[action] = 0
+            for dst in range(transition_probs.shape[-1]):
+                next_state = transition_states[state, action, dst]
+                prob = transition_probs[state, action, dst]
+                reward = rewards[state, action]
+                value = values[next_state]
+                if discounting < 0:
+                    discount = 1.0 - np.abs(reward)
+                else:
+                    discount = discounting
+
+                action_values[action] += prob * (reward + discount * value)
+
+        next_values[state] = np.max(action_values)
+    return next_values

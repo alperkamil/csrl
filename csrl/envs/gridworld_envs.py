@@ -579,6 +579,7 @@ class GridWorldEnv(gym.Env, ArrayEnv):
 
             # Draw the arrows to visualize the policy
             elif values[i,j] > 0 or values is self.rewards:  # Do not draw the arrows if the value is zero
+                # TODO: Change the way the epsilon-actions are displayed for the cross-product actions
                 if policy[i,j] >= len(self.action_dirs):  # Display the epsilon-actions
                     plt.text(j, i-0.05,r'$\varepsilon_'+str(policy[i,j]-len(self.action_dirs)+1)+'$', horizontalalignment='center',color=color,fontsize=fontsize+5)
                 else:

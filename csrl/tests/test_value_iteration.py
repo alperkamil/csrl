@@ -17,13 +17,14 @@ def test_value_iteration():
         gw.plot(values=vi.values, policy=vi.get_greedy_policy()[..., 0])
 
  
-        for oa_type in ['dpa']:  # ['dpa', 'ldba']:
+        for oa_type in ['dpa', 'ldba']:
             ltl = ltl_dict[name]['ltl']
-            orm = OmegaRewardMachine(rmax=0.01, ltl=ltl, oa_type=oa_type)
+            orm = OmegaRewardMachine(rmax=0.0001, ltl=ltl, oa_type=oa_type)
             product_env = DiscreteProductEnv(gw, orm)
             transition_states, transition_probs, rewards = product_env.get_transition_reward_arrays()
             vi = ValueIteration(product_env)
-            vi.run(max_iterations=10_000_000, tolerance=1e-8)
+            # vi.run(max_iterations=10_000_000, tolerance=1e-8)
+            vi.run_numba(max_iterations=10_000_000, tolerance=1e-10)
 
             values = vi.values
             policy = vi.get_greedy_policy()[..., 0]
@@ -33,7 +34,4 @@ def test_value_iteration():
                 policy_list.append(policy[:, :, mode[0]])
 
             gw.plot_list(values_list, policy_list)
-
-
-        break
 
