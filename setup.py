@@ -10,11 +10,10 @@ setup(
       packages=['csrl'],
       zip_safe=False,
       install_requires=[
-            'numpy>=2',
+            'numpy>=1.26',
             'gymnasium>=1',
             'matplotlib>=3.8',
             'ipywidgets>=8',
-            'spot>=2.11',
             'numba>=0.57',
       ]
 )

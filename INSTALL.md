@@ -5,13 +5,10 @@ This document explains how to set up **CSRL v2** and its external dependencies o
 > **Quick summary:** You need Python ≥ 3.10 (ideally in a virtualenv), the **Owl Toolkit**, and **Spot** with its Python bindings. Then `pip install -e .` inside this repo.
 
 
----
-
-### Requirements
+## Requirements
 - [**Python**](https://www.python.org/) ≥ 3.10
 - [**Owl**](https://owl.model.in.tum.de/) ≥ 21.0 — `ltl2ldba` and `ltl2dpa` binaries must be in your `PATH`
 - [**Spot**](https://spot.lrde.epita.fr/) ≥ 2.11 — with Python bindings installed in your environment
----
 
 
 ## Python
@@ -25,7 +22,6 @@ python3 --version
 ```
 
 Create and activate a virtual environment (recommended):
-
 ```bash
 export VENV_DIR=~/venvs/csrl
 python3 -m venv "$VENV_DIR"
@@ -36,7 +32,6 @@ pip install --upgrade pip
 ---
 ## Owl Toolkit
 Download from the [official releases](https://github.com/owl-toolkit/owl/releases/tag/release-21.0) and place binaries/libs on your `PATH`/`LD_LIBRARY_PATH`. Example:
-
 ```bash
 # Choose a local install prefix that is already (or will be) on your PATH
 export LOCAL=/usr/local
@@ -63,7 +58,6 @@ owl --version
 ---
 ##  Spot
 Follow [Spot’s docs](https://spot.lre.epita.fr/install.html) if you prefer packages; otherwise, build from source as below (with Python bindings into your venv):
-
 ```bash
 # Where to install Spot (same LOCAL as above)
 export LOCAL=/usr/local

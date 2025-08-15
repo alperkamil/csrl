@@ -23,7 +23,7 @@ CSRL v2 provides implementations for synthesizing control policies from formal t
 - **Minimax-Q** for SGs (coming soon)
 
 
-## 🚀 Installation Guide
+## 🚀 Installation
 Please check [INSTALL.md](./INSTALL.md) for installation details.
 
 ### Requirements
